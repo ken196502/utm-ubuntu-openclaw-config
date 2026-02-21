@@ -1,0 +1,10 @@
+workspace/skills
+agents/
+extensions/
+logs/
+completions/
+subagents/
+canvas/
+memory/
+devices/
+identity/

@@ -1,0 +1,152 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.2.9",
+    "lastTouchedAt": "2026-02-12T13:18:02.057Z"
+  },
+  "wizard": {
+    "lastRunAt": "2026-02-11T15:22:41.329Z",
+    "lastRunVersion": "2026.2.9",
+    "lastRunCommand": "doctor",
+    "lastRunMode": "local"
+  },
+  "models": {
+    "providers": {
+      "franklin755": {
+        "baseUrl": "https://ai.reluv.xyz/v1",
+        "apiKey": "sk-ldLFBL8h1E9uPAMaCv0Bmrh7mDCwdswNnoj0vMzsRiwuWJuy",
+        "auth": "api-key",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "clawdbot",
+            "name": "clawdbot",
+            "api": "openai-completions",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 128000,
+            "maxTokens": 50000
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "blockStreamingDefault":"on",
+      "sandbox": {
+        "mode": "off"
+      },
+      "model": {
+        "primary": "franklin755/clawdbot"
+      },
+      "models": {
+        "franklin755/clawdbot": {}
+      },
+      "workspace": "/home/ubuntu/.openclaw/workspace",
+      "compaction": {
+        "mode": "safeguard"
+      },
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
+      }
+    }
+  },
+  "messages": {
+    "ackReactionScope": "group-mentions"
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto"
+  },
+  "hooks": {
+    "internal": {
+      "enabled": true,
+      "entries": {
+        "session-memory": {
+          "enabled": true
+        },
+        "command-logger": {
+          "enabled": true
+        },
+        "boot-md": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "channels": {
+    "feishu": {
+      "enabled": false,
+      "appId": "",
+      "appSecret": "",
+      "domain": "feishu",
+      "connectionMode": "websocket",
+      "dmPolicy": "pairing",
+      "groupPolicy": "allowlist",
+      "requireMention": true,
+      "mediaMaxMb": 30,
+      "renderMode": "auto",
+      "accounts": {
+        "main": {
+          "appId": "cli_a90632fb99781cd6",
+          "appSecret": "Rt3YAm95KiftI5PxlVq3Zg0oqCllnHn3",
+          "botName": "FeishuAI"
+        }
+      },
+      "stream":false
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "620154d584568fed3564088148333023bcab76e5f618b0ff"
+    },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    },
+    "nodes": {
+      "denyCommands": [
+        "camera.snap",
+        "camera.clip",
+        "screen.record",
+        "calendar.add",
+        "contacts.add",
+        "reminders.add"
+      ]
+    }
+  },
+  "skills": {
+    "install": {
+      "nodeManager": "pnpm"
+    }
+  },
+  "plugins": {
+    "entries": {
+      "feishu": {
+        "enabled": true
+      }
+    },
+    "installs": {
+      "feishu": {
+        "source": "npm",
+        "spec": "@m1heng-clawd/feishu",
+        "installPath": "/home/ubuntu/.openclaw/extensions/feishu",
+        "version": "0.1.9",
+        "installedAt": "2026-02-12T13:18:00.563Z"
+      }
+    }
+  }
+}
