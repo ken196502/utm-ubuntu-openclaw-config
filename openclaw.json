@@ -1,7 +1,7 @@
 {
   "meta": {
-    "lastTouchedVersion": "2026.2.9",
-    "lastTouchedAt": "2026-02-12T13:18:02.057Z"
+    "lastTouchedVersion": "2026.2.21-2",
+    "lastTouchedAt": "2026-02-23T02:09:45.556Z"
   },
   "wizard": {
     "lastRunAt": "2026-02-11T15:22:41.329Z",
@@ -40,10 +40,6 @@
   },
   "agents": {
     "defaults": {
-      "blockStreamingDefault":"on",
-      "sandbox": {
-        "mode": "off"
-      },
       "model": {
         "primary": "franklin755/clawdbot"
       },
@@ -54,9 +50,13 @@
       "compaction": {
         "mode": "safeguard"
       },
+      "blockStreamingDefault": "on",
       "maxConcurrent": 4,
       "subagents": {
         "maxConcurrent": 8
+      },
+      "sandbox": {
+        "mode": "off"
       }
     }
   },
@@ -65,7 +65,9 @@
   },
   "commands": {
     "native": "auto",
-    "nativeSkills": "auto"
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
   },
   "hooks": {
     "internal": {
@@ -102,7 +104,7 @@
           "botName": "FeishuAI"
         }
       },
-      "stream":false
+      "stream": false
     }
   },
   "gateway": {
@@ -110,7 +112,7 @@
     "mode": "local",
     "bind": "loopback",
     "auth": {
-      "mode": "token",
+      "mode": "none",
       "token": "620154d584568fed3564088148333023bcab76e5f618b0ff"
     },
     "tailscale": {

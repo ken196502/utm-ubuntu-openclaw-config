@@ -8,3 +8,7 @@ canvas/
 memory/
 devices/
 identity/
+browser/
+workspace/*.log
+workspace/*.json
+workspace/db
