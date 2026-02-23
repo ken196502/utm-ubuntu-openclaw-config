@@ -12,3 +12,4 @@ browser/
 workspace/*.log
 workspace/*.json
 workspace/db
+.env

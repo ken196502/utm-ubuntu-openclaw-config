@@ -87,7 +87,7 @@
   },
   "channels": {
     "feishu": {
-      "enabled": false,
+      "enabled": true,
       "appId": "",
       "appSecret": "",
       "domain": "feishu",
