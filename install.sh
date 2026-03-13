@@ -50,9 +50,10 @@ FEISHU_APP_SECRET=
 # ── Telegram（可选）─────────────────────────
 TELEGRAM_BOT_TOKEN=
 
-# ── WhatsApp 通过 QR 配对，无需 token ────────
-# 如需禁用，取消下面注释：
-# WHATSAPP_ENABLED=false
+# ── WhatsApp（可选）──────────────────────────
+# 只允许这个号码触发 AI（国际格式，如 +8613800138000）
+# 留空则跳过 WhatsApp 绑定
+WHATSAPP_ALLOW_FROM=
 EOF
     chmod 600 "$ENV_FILE"
     echo ""
@@ -88,6 +89,7 @@ EOF
   [ -z "$FEISHU_APP_ID" ]        && warn "FEISHU_APP_ID 未填，飞书集成将被禁用"
   [ -z "$FEISHU_APP_SECRET" ]    && warn "FEISHU_APP_SECRET 未填，飞书集成将被禁用"
   [ -z "$TELEGRAM_BOT_TOKEN" ]   && warn "TELEGRAM_BOT_TOKEN 未填，Telegram 将被禁用"
+  [ -z "$WHATSAPP_ALLOW_FROM" ]  && warn "WHATSAPP_ALLOW_FROM 未填，将跳过 WhatsApp 绑定"
 
   success ".env 加载完成"
 }
@@ -137,15 +139,15 @@ deploy_config() {
     "$LLM_BASE_URL" "$LLM_API_KEY" "$LLM_PROVIDER_ID" "$LLM_MODEL_ID" \
     "$GATEWAY_TOKEN" "$BROWSER_PATH" \
     "$BRAVE_SEARCH_API_KEY" "$FEISHU_APP_ID" "$FEISHU_APP_SECRET" \
-    "$TELEGRAM_BOT_TOKEN" \
+    "$TELEGRAM_BOT_TOKEN" "$WHATSAPP_ALLOW_FROM" \
     <<'PYEOF'
-import sys
+import sys, json, re
 
 src, dst, workspace, \
   llm_base_url, llm_api_key, llm_provider_id, llm_model_id, \
   gateway_token, browser_path, \
   brave_key, feishu_id, feishu_secret, \
-  telegram_token = sys.argv[1:]
+  telegram_token, whatsapp_allow_from = sys.argv[1:]
 
 with open(src, 'r') as f:
     c = f.read()
@@ -167,15 +169,25 @@ replacements = {
 for placeholder, value in replacements.items():
     c = c.replace(placeholder, value)
 
+# whatsapp allowFrom：把 ["${WHATSAPP_ALLOW_FROM}"] 替换为正确的 JSON 数组
+if whatsapp_allow_from:
+    numbers = [n.strip() for n in whatsapp_allow_from.split(',') if n.strip()]
+    allow_json = json.dumps(numbers)
+    c = c.replace('["${WHATSAPP_ALLOW_FROM}"]', allow_json)
+else:
+    c = c.replace('"${WHATSAPP_ALLOW_FROM}"', '')
+    c = c.replace('[""]', '[]')
+
 with open(dst, 'w') as f:
     f.write(c)
 PYEOF
 
-  # 可选模块：key 为空则关闭 enabled
+  # ── 可选模块：key 为空则 python 关闭 enabled ──────────
+
   if [ -z "$BRAVE_SEARCH_API_KEY" ]; then
     info "关闭 tools.web.search..."
     python3 -c "
-import re, sys
+import re
 with open('$DST_CONFIG', 'r') as f: c = f.read()
 c = re.sub(r'(\"search\"\s*:\s*\{[^}]*?)\"enabled\"\s*:\s*true', r'\1\"enabled\": false', c, flags=re.DOTALL)
 with open('$DST_CONFIG', 'w') as f: f.write(c)
@@ -205,8 +217,8 @@ with open('$DST_CONFIG', 'w') as f: f.write(c)
     warn "Telegram 已禁用"
   fi
 
-  if [ "${WHATSAPP_ENABLED:-true}" = "false" ]; then
-    info "关闭 channels.whatsapp..."
+  if [ -z "$WHATSAPP_ALLOW_FROM" ]; then
+    info "关闭 channels.whatsapp（未填 WHATSAPP_ALLOW_FROM）..."
     python3 -c "
 import re
 with open('$DST_CONFIG', 'r') as f: c = f.read()
@@ -256,7 +268,31 @@ deploy_workspace() {
 }
 
 # ───────────────────────────────────────────────────────
-# 5. 验证
+# 5. WhatsApp 扫码绑定（仅当 WHATSAPP_ALLOW_FROM 有值时）
+# ───────────────────────────────────────────────────────
+setup_whatsapp() {
+  if [ -z "$WHATSAPP_ALLOW_FROM" ]; then
+    return
+  fi
+
+  echo ""
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${BLUE}  WhatsApp 绑定${NC}"
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo ""
+  echo "  即将显示 QR code，请用手机扫码："
+  echo ""
+  echo "    1. 打开 WhatsApp"
+  echo "    2. Settings → Linked Devices → Link a Device"
+  echo "    3. 扫描下方二维码"
+  echo ""
+  read -p "  准备好了？按 Enter 开始..." _
+
+  openclaw channels login --channel whatsapp || warn "WhatsApp 绑定失败或已绑定，可稍后手动运行：openclaw channels login --channel whatsapp"
+}
+
+# ───────────────────────────────────────────────────────
+# 6. 验证
 # ───────────────────────────────────────────────────────
 verify() {
   if command -v openclaw &>/dev/null; then
@@ -280,6 +316,7 @@ load_env
 install_openclaw
 deploy_config
 deploy_workspace
+setup_whatsapp
 verify
 
 echo ""
@@ -287,6 +324,10 @@ echo -e "${GREEN}✓ 安装完成！${NC}"
 echo ""
 echo "  配置文件 : $OPENCLAW_DIR/openclaw.json"
 echo "  Workspace: $OPENCLAW_DIR/workspace/"
+echo ""
+if [ -n "$WHATSAPP_ALLOW_FROM" ]; then
+echo "  WhatsApp : 已绑定，允许号码 → $WHATSAPP_ALLOW_FROM"
+fi
 echo ""
 echo "  启动命令 : openclaw start"
 echo ""

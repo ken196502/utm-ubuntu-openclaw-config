@@ -1,0 +1,161 @@
+{
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "${LLM_PROVIDER_ID}": {
+        "baseUrl": "${LLM_BASE_URL}",
+        "apiKey": "${LLM_API_KEY}",
+        "auth": "api-key",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "${LLM_MODEL_ID}",
+            "name": "${LLM_MODEL_ID}",
+            "api": "openai-completions",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 128000,
+            "maxTokens": 50000
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "${LLM_PROVIDER_ID}/${LLM_MODEL_ID}",
+        "fallbacks": []
+      },
+      "models": {
+        "${LLM_PROVIDER_ID}/${LLM_MODEL_ID}": {}
+      },
+      "workspace": "~/.openclaw/workspace",
+      "compaction": {
+        "mode": "safeguard"
+      },
+      "blockStreamingDefault": "off",
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
+      },
+      "sandbox": {
+        "mode": "off"
+      }
+    }
+  },
+  "tools": {
+    "profile": "full",
+    "web": {
+      "search": {
+        "enabled": true,
+        "provider": "brave",
+        "apiKey": "${BRAVE_SEARCH_API_KEY}",
+        "maxResults": 5,
+        "timeoutSeconds": 30
+      }
+    },
+    "allow": ["*"],
+    "sessions": {
+      "visibility": "all"
+    }
+  },
+  "messages": {
+    "ackReactionScope": "group-mentions"
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
+  },
+  "hooks": {
+    "internal": {
+      "enabled": true,
+      "entries": {
+        "session-memory": { "enabled": true },
+        "command-logger": { "enabled": true },
+        "boot-md":        { "enabled": true }
+      }
+    }
+  },
+  "channels": {
+    "feishu": {
+      "enabled": true,
+      "appId": "${FEISHU_APP_ID}",
+      "appSecret": "${FEISHU_APP_SECRET}",
+      "domain": "feishu",
+      "connectionMode": "websocket",
+      "requireMention": true,
+      "mediaMaxMb": 30,
+      "renderMode": "auto",
+      "tools": { "perm": true },
+      "accounts": {
+        "default": {
+          "appId": "${FEISHU_APP_ID}",
+          "appSecret": "${FEISHU_APP_SECRET}",
+          "botName": "FeishuAI",
+          "dmPolicy": "pairing",
+          "groupPolicy": "open"
+        }
+      },
+      "stream": false
+    },
+    "telegram": {
+      "enabled": false,
+      "botToken": "${TELEGRAM_BOT_TOKEN}",
+      "dmPolicy": "pairing",
+      "groupPolicy": "open"
+    },
+    "whatsapp": {
+      "enabled": true,
+      "dmPolicy": "allowlist",
+      "groupPolicy": "open",
+      "allowFrom": ["${WHATSAPP_ALLOW_FROM}"]
+    }
+  },
+  "browser": {
+    "enabled": true,
+    "executablePath": "${BROWSER_PATH}",
+    "defaultProfile": "openclaw"
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "${GATEWAY_TOKEN}"
+    },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    },
+    "nodes": {
+      "denyCommands": [
+        "camera.snap",
+        "camera.clip",
+        "screen.record",
+        "calendar.add",
+        "contacts.add",
+        "reminders.add"
+      ]
+    }
+  },
+  "skills": {
+    "install": {
+      "nodeManager": "pnpm"
+    }
+  },
+  "plugins": {
+    "entries": {
+      "feishu": { "enabled": true }
+    }
+  }
+}
