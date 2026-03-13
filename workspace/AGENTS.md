@@ -58,6 +58,21 @@ Skills provide your tools. When you need one, check its `SKILL.md`. Keep local n
 - **Discord links:** Wrap multiple links in `<>` to suppress embeds: `<https://example.com>`
 - **WhatsApp:** No headers — use **bold** or CAPS for emphasis
 
+**Skill-Based Task Routing**
+
+When you receive a user request:
+- Scan `workspace/skills/` for a skill whose purpose matches the request.
+- If found and the skill's `type` is `agent`, spawn a subagent using that skill and hand over the task (use `sessions_spawn` with `runtime: "subagent"`).
+- If no matching skill exists, handle the request directly using available tools.
+
+Prefer delegating to specialized subagents over handling directly; main agent should act as router and orchestrator.
+
+Always ask the user for confirmation before spawning an agent for multi-step tasks unless the skill is explicitly invoked.
+
+## 🧠 Skills & Tools
+
+Skills provide structured capabilities. Check a skill's `SKILL.md` to understand its inputs, outputs, and limitations before invoking.
+
 ## 💓 Heartbeats - Be Proactive!
 
 When you receive a heartbeat poll (message matches the configured heartbeat prompt), don't just reply `HEARTBEAT_OK` every time. Use heartbeats productively!

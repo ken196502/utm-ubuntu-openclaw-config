@@ -13,3 +13,10 @@ workspace/*.log
 workspace/*.json
 workspace/db
 .env
+workspace/.DS_Store
+media/
+workspace/**/*.md
+workspace/**/*.XML
+credentials/
+workspace/**/*.json
+cron/runs/*.jsonl

@@ -1,15 +1,16 @@
 # HEARTBEAT.md
 
-## Twitter Scraper Check
-- Always spawn a subagent to perform the Twitter scraper check
-- The subagent should:
-  0. Check cooldown: Read `memory/last_twitter_check_timestamp.txt`. If the file exists and its timestamp is within the last 30 minutes, report "Cooldown active (last run < 30 min ago) — skipping Twitter scraper check" and exit early.
-  1. Scrape the OpenClaw Twitter list (list-id: 2023053272517660833) with limit 20 and save to database (db-name: openclaw)
-  2. If all tweets already exist (no new tweets), then search for popular tweets using search script with query "openclaw min_faves:100" and limit 10 --fallback
-  3. If tweets with 100+ likes are found:
-     - Identify the most popular tweet (highest likes), but if there are multiple tweets with similar content (e.g., openclaw updates), prioritize the latest one
-     - Fetch detailed content: text, images, videos, and hot replies
-     - Summarize the keypoints from that tweet and its engagement
-  4. If no tweets got 100+ likes, skip (no summary needed)
-  5. After successful completion, write the current UTC timestamp to `memory/last_twitter_check_timestamp.txt` (format: YYYY-MM-DD HH:MM:SS UTC)
-- Report the subagent's results
+## 待办检查项
+
+### RSS 监控
+- 运行: `python3 rss-monitor.py --config rss-data --send`
+- 功能: 获取RSS最新节点（标题、日期、链接）
+- 如果文章已缓存则输出"没有新文章"
+- RSS源: https://wx.subx.fun/feed/MP_WXS_3074432418.rss
+- 自动发送节点信息到飞书
+
+### 子代理状态
+- 列出所有活跃的子代理
+
+### 计划任务
+- 检查待处理的计划并启动代理
