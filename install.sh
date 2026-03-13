@@ -19,8 +19,6 @@ error()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
 # ───────────────────────────────────────────────────────
 # 1. 加载 .env
-#    - 不存在 → 生成模板，提示用户填写后重跑，直接退出
-#    - 存在   → 加载，校验必填项，可选项给 warn 提示
 # ───────────────────────────────────────────────────────
 load_env() {
   if [ ! -f "$ENV_FILE" ]; then
@@ -53,6 +51,8 @@ FEISHU_APP_SECRET=
 TELEGRAM_BOT_TOKEN=
 
 # ── WhatsApp 通过 QR 配对，无需 token ────────
+# 如需禁用，取消下面注释：
+# WHATSAPP_ENABLED=false
 EOF
     chmod 600 "$ENV_FILE"
     echo ""
@@ -69,7 +69,7 @@ EOF
   info "加载 .env..."
   set -a; source "$ENV_FILE"; set +a
 
-  # ── 必填校验 ──────────────────────────────
+  # 必填校验
   MISSING=()
   [ -z "$LLM_BASE_URL" ]    && MISSING+=("LLM_BASE_URL")
   [ -z "$LLM_API_KEY" ]     && MISSING+=("LLM_API_KEY")
@@ -82,7 +82,7 @@ EOF
     error "以下必填字段未填写：$(IFS=', '; echo "${MISSING[*]}")\n请编辑 $ENV_FILE 后重新运行。"
   fi
 
-  # ── 可选项提示 ────────────────────────────
+  # 可选项提示
   [ -z "$BROWSER_PATH" ]         && warn "BROWSER_PATH 未填，将由 OpenClaw 自动探测浏览器"
   [ -z "$BRAVE_SEARCH_API_KEY" ] && warn "BRAVE_SEARCH_API_KEY 未填，Brave Search 将被禁用"
   [ -z "$FEISHU_APP_ID" ]        && warn "FEISHU_APP_ID 未填，飞书集成将被禁用"
@@ -112,12 +112,11 @@ install_openclaw() {
 
 # ───────────────────────────────────────────────────────
 # 3. 部署 openclaw.json
-#    a) perl 替换所有 ${VAR} 占位符
-#    b) 可选 key 为空时，用 perl 把对应模块的 enabled 改为 false
 # ───────────────────────────────────────────────────────
 deploy_config() {
   SRC_CONFIG="$SCRIPT_DIR/openclaw.json"
   DST_CONFIG="$OPENCLAW_DIR/openclaw.json"
+  WORKSPACE_PATH="$OPENCLAW_DIR/workspace"
 
   [ -f "$SRC_CONFIG" ] || error "找不到 $SRC_CONFIG，请确认脚本和 openclaw.json 在同一目录"
 
@@ -130,62 +129,101 @@ deploy_config() {
     warn "已备份旧配置 → $BACKUP"
   fi
 
-  # workspace 实际路径
-  WORKSPACE_PATH="$OPENCLAW_DIR/workspace"
-
-  # ── 替换所有占位符 ────────────────────────
   info "写入 openclaw.json 并替换占位符..."
-  # workspace 路径：把 json 里的 ~/.openclaw/workspace 展开为实际绝对路径
-  perl -pe "
-    s|\\\${LLM_BASE_URL}|${LLM_BASE_URL}|g;
-    s|\\\${LLM_API_KEY}|${LLM_API_KEY}|g;
-    s|\\\${LLM_PROVIDER_ID}|${LLM_PROVIDER_ID}|g;
-    s|\\\${LLM_MODEL_ID}|${LLM_MODEL_ID}|g;
-    s|\\\${GATEWAY_TOKEN}|${GATEWAY_TOKEN}|g;
-    s|\\\${BROWSER_PATH}|${BROWSER_PATH}|g;
-    s|\\\${BRAVE_SEARCH_API_KEY}|${BRAVE_SEARCH_API_KEY}|g;
-    s|\\\${FEISHU_APP_ID}|${FEISHU_APP_ID}|g;
-    s|\\\${FEISHU_APP_SECRET}|${FEISHU_APP_SECRET}|g;
-    s|\\\${TELEGRAM_BOT_TOKEN}|${TELEGRAM_BOT_TOKEN}|g;
-    s|\\\${OPENCLAW_WORKSPACE}|${WORKSPACE_PATH}|g;
-  " "$SRC_CONFIG" > "$DST_CONFIG"
 
-  # 展开 workspace 路径（~ 不被 openclaw 自动解析）
-  perl -i -pe "s|~/.openclaw/workspace|${WORKSPACE_PATH}|g" "$DST_CONFIG"
+  # 用 python 做替换，彻底避免 shell/perl 转义问题
+  python3 - \
+    "$SRC_CONFIG" "$DST_CONFIG" "$WORKSPACE_PATH" \
+    "$LLM_BASE_URL" "$LLM_API_KEY" "$LLM_PROVIDER_ID" "$LLM_MODEL_ID" \
+    "$GATEWAY_TOKEN" "$BROWSER_PATH" \
+    "$BRAVE_SEARCH_API_KEY" "$FEISHU_APP_ID" "$FEISHU_APP_SECRET" \
+    "$TELEGRAM_BOT_TOKEN" \
+    <<'PYEOF'
+import sys
 
-  # ── 可选模块：key 为空则关闭 enabled ──────
+src, dst, workspace, \
+  llm_base_url, llm_api_key, llm_provider_id, llm_model_id, \
+  gateway_token, browser_path, \
+  brave_key, feishu_id, feishu_secret, \
+  telegram_token = sys.argv[1:]
 
+with open(src, 'r') as f:
+    c = f.read()
+
+replacements = {
+    '${LLM_BASE_URL}':         llm_base_url,
+    '${LLM_API_KEY}':          llm_api_key,
+    '${LLM_PROVIDER_ID}':      llm_provider_id,
+    '${LLM_MODEL_ID}':         llm_model_id,
+    '${GATEWAY_TOKEN}':        gateway_token,
+    '${BROWSER_PATH}':         browser_path,
+    '${BRAVE_SEARCH_API_KEY}': brave_key,
+    '${FEISHU_APP_ID}':        feishu_id,
+    '${FEISHU_APP_SECRET}':    feishu_secret,
+    '${TELEGRAM_BOT_TOKEN}':   telegram_token,
+    '~/.openclaw/workspace':   workspace,
+}
+
+for placeholder, value in replacements.items():
+    c = c.replace(placeholder, value)
+
+with open(dst, 'w') as f:
+    f.write(c)
+PYEOF
+
+  # 可选模块：key 为空则关闭 enabled
   if [ -z "$BRAVE_SEARCH_API_KEY" ]; then
     info "关闭 tools.web.search..."
-    perl -i -0pe 's|("web"\s*:\s*\{[^}]*?"search"\s*:\s*\{[^}]*?)"enabled"\s*:\s*true|\1"enabled": false|s' "$DST_CONFIG"
+    python3 -c "
+import re, sys
+with open('$DST_CONFIG', 'r') as f: c = f.read()
+c = re.sub(r'(\"search\"\s*:\s*\{[^}]*?)\"enabled\"\s*:\s*true', r'\1\"enabled\": false', c, flags=re.DOTALL)
+with open('$DST_CONFIG', 'w') as f: f.write(c)
+"
     warn "Brave Search 已禁用"
   fi
 
   if [ -z "$FEISHU_APP_ID" ] || [ -z "$FEISHU_APP_SECRET" ]; then
     info "关闭 channels.feishu 和 plugins.feishu..."
-    perl -i -0pe '
-      s|("channels"\s*:\s*\{.*?"feishu"\s*:\s*\{.*?)"enabled"\s*:\s*true|\1"enabled": false|s;
-      s|("plugins"\s*:\s*\{.*?"feishu"\s*:\s*\{.*?)"enabled"\s*:\s*true|\1"enabled": false|s;
-    ' "$DST_CONFIG"
+    python3 -c "
+import re
+with open('$DST_CONFIG', 'r') as f: c = f.read()
+c = re.sub(r'(\"feishu\"\s*:\s*\{[^{]*?)\"enabled\"\s*:\s*true', r'\1\"enabled\": false', c, flags=re.DOTALL)
+with open('$DST_CONFIG', 'w') as f: f.write(c)
+"
     warn "飞书集成已禁用"
   fi
 
   if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
     info "关闭 channels.telegram..."
-    perl -i -0pe 's|("telegram"\s*:\s*\{[^}]*?)"enabled"\s*:\s*true|\1"enabled": false|s' "$DST_CONFIG"
+    python3 -c "
+import re
+with open('$DST_CONFIG', 'r') as f: c = f.read()
+c = re.sub(r'(\"telegram\"\s*:\s*\{[^}]*?)\"enabled\"\s*:\s*true', r'\1\"enabled\": false', c, flags=re.DOTALL)
+with open('$DST_CONFIG', 'w') as f: f.write(c)
+"
     warn "Telegram 已禁用"
   fi
 
-  # WhatsApp 无 token，默认 enabled:true，如需禁用请在 .env 加 WHATSAPP_ENABLED=false
   if [ "${WHATSAPP_ENABLED:-true}" = "false" ]; then
     info "关闭 channels.whatsapp..."
-    perl -i -0pe 's|("whatsapp"\s*:\s*\{[^}]*?)"enabled"\s*:\s*true|\1"enabled": false|s' "$DST_CONFIG"
+    python3 -c "
+import re
+with open('$DST_CONFIG', 'r') as f: c = f.read()
+c = re.sub(r'(\"whatsapp\"\s*:\s*\{[^}]*?)\"enabled\"\s*:\s*true', r'\1\"enabled\": false', c, flags=re.DOTALL)
+with open('$DST_CONFIG', 'w') as f: f.write(c)
+"
     warn "WhatsApp 已禁用"
   fi
 
   if [ -z "$BROWSER_PATH" ]; then
-    info "BROWSER_PATH 为空，移除 browser.executablePath（使用自动探测）..."
-    perl -i -0pe 's|"executablePath"\s*:\s*"",?\s*\n?||g' "$DST_CONFIG"
+    info "移除 browser.executablePath（使用自动探测）..."
+    python3 -c "
+import re
+with open('$DST_CONFIG', 'r') as f: c = f.read()
+c = re.sub(r',?\s*\"executablePath\"\s*:\s*\"\"', '', c)
+with open('$DST_CONFIG', 'w') as f: f.write(c)
+"
   fi
 
   chmod 600 "$DST_CONFIG"
