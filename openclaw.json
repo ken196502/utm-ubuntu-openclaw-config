@@ -86,6 +86,21 @@
     }
   },
   "channels": {
+    "whatsapp": {
+      "enabled": true,
+      "dmPolicy": "allowlist",
+      "allowFrom": ["${WHATSAPP_ALLOW_FROM}"],
+      "groupPolicy": "open",
+      "debounceMs": 0,
+      "mediaMaxMb": 50
+    },
+    "telegram": {
+      "enabled": true,
+      "dmPolicy": "pairing",
+      "botToken": "${TELEGRAM_BOT_TOKEN}",
+      "groupPolicy": "open",
+      "streaming": "partial"
+    },
     "feishu": {
       "enabled": true,
       "appId": "${FEISHU_APP_ID}",
@@ -95,7 +110,9 @@
       "requireMention": true,
       "mediaMaxMb": 30,
       "renderMode": "auto",
-      "tools": { "perm": true },
+      "tools": {
+        "perm": true
+      },
       "accounts": {
         "default": {
           "appId": "${FEISHU_APP_ID}",
@@ -106,18 +123,6 @@
         }
       },
       "stream": false
-    },
-    "telegram": {
-      "enabled": false,
-      "botToken": "${TELEGRAM_BOT_TOKEN}",
-      "dmPolicy": "pairing",
-      "groupPolicy": "open"
-    },
-    "whatsapp": {
-      "enabled": true,
-      "dmPolicy": "allowlist",
-      "groupPolicy": "open",
-      "allowFrom": ["${WHATSAPP_ALLOW_FROM}"]
     }
   },
   "browser": {
