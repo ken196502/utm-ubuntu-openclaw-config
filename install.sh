@@ -106,8 +106,16 @@ EOF
 # ───────────────────────────────────────────────────────
 install_openclaw() {
   if command -v openclaw &>/dev/null; then
-    OLD_VER=$(openclaw --version 2>/dev/null || echo "unknown")
-    info "检测到 OpenClaw $OLD_VER，强制更新到最新版..."
+    LOCAL_VER=$(openclaw --version 2>/dev/null | grep -oE '[0-9]+[.][0-9]+[.][0-9]+' | head -1)
+    LATEST_VER=$(curl -fsSL https://registry.npmjs.org/openclaw/latest 2>/dev/null \
+      | python3 -c "import sys,json; print(json.load(sys.stdin).get('version',''))" 2>/dev/null || echo "")
+
+    if [ -n "$LATEST_VER" ] && [ "$LOCAL_VER" = "$LATEST_VER" ]; then
+      success "OpenClaw 已是最新版 $LOCAL_VER，跳过安装"
+      return
+    else
+      info "本地版本 $LOCAL_VER，最新版 $LATEST_VER，开始更新..."
+    fi
   else
     info "未检测到 OpenClaw，开始全新安装..."
   fi
@@ -115,7 +123,7 @@ install_openclaw() {
   curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh \
     | bash -s -- --no-prompt --no-onboard
 
-  NEW_VER=$(openclaw --version 2>/dev/null || echo "unknown")
+  NEW_VER=$(openclaw --version 2>/dev/null | grep -oE '[0-9]+[.][0-9]+[.][0-9]+' | head -1)
   success "OpenClaw 安装/更新完成，当前版本: $NEW_VER"
 }
 
