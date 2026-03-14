@@ -3,13 +3,16 @@ set -e
 
 # ═══════════════════════════════════════════════════════
 # OpenClaw 一键安装脚本
-# 用法: bash install.sh
-# 依赖: 同目录下的 openclaw.json 和 workspace/
+#
+# 用法（curl 直接安装）:
+#   curl -fsSL https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master/install.sh | bash
+
 # ═══════════════════════════════════════════════════════
 
+GITHUB_RAW="https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master"
+
 OPENCLAW_DIR="$HOME/.openclaw"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/.env"
+ENV_FILE="$OPENCLAW_DIR/.env"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 info()    { echo -e "${BLUE}[INFO]${NC}  $1"; }
@@ -22,10 +25,11 @@ error()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 # ───────────────────────────────────────────────────────
 load_env() {
   if [ ! -f "$ENV_FILE" ]; then
-    warn ".env 不存在，正在生成模板..."
+    warn ".env 不存在，正在生成模板到 $ENV_FILE ..."
+    mkdir -p "$OPENCLAW_DIR"
     cat > "$ENV_FILE" <<'EOF'
 # ══════════════════════════════════════════════
-# OpenClaw 配置 — 填好后运行 bash install.sh
+# OpenClaw 配置 — 填好后重新运行安装脚本
 # ══════════════════════════════════════════════
 
 # ── LLM Provider（必填）─────────────────────
@@ -34,10 +38,11 @@ LLM_API_KEY=
 LLM_PROVIDER_ID=myprovider
 LLM_MODEL_ID=my-model-name
 
-# ── Gateway Token（必填，自行生成一个随机串）─
+# ── Gateway Token（必填，自行生成随机串）────
+# 生成方法: openssl rand -hex 24
 GATEWAY_TOKEN=
 
-# ── Browser（可选，留空则 OpenClaw 自动探测）─
+# ── Browser（可选，留空则 OpenClaw 自动探测）
 BROWSER_PATH=
 
 # ── Brave Search（可选）─────────────────────
@@ -51,7 +56,7 @@ FEISHU_APP_SECRET=
 TELEGRAM_BOT_TOKEN=
 
 # ── WhatsApp（可选）──────────────────────────
-# 只允许这个号码触发 AI（国际格式，如 +8613800138000）
+# 国际格式，多个号码逗号分隔：+8613800138000,+8613900139000
 # 留空则跳过 WhatsApp 绑定
 WHATSAPP_ALLOW_FROM=
 EOF
@@ -61,13 +66,15 @@ EOF
     echo -e "${YELLOW}  .env 模板已生成，请先填写后重新运行：${NC}"
     echo ""
     echo -e "    ${BLUE}vim $ENV_FILE${NC}"
-    echo -e "    ${BLUE}bash $0${NC}"
+    echo ""
+    echo -e "  重新运行安装：${NC}"
+    echo -e "    ${BLUE}curl -fsSL ${GITHUB_RAW}/install.sh | bash${NC}"
     echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     exit 1
   fi
 
-  info "加载 .env..."
+  info "加载 .env ($ENV_FILE)..."
   set -a; source "$ENV_FILE"; set +a
 
   # 必填校验
@@ -113,16 +120,18 @@ install_openclaw() {
 }
 
 # ───────────────────────────────────────────────────────
-# 3. 部署 openclaw.json
+# 3. 部署 openclaw.json（从 GitHub 下载后替换占位符）
 # ───────────────────────────────────────────────────────
 deploy_config() {
-  SRC_CONFIG="$SCRIPT_DIR/openclaw.json"
+  TMP_CONFIG="$(mktemp /tmp/openclaw_config.XXXXXX.json)"
   DST_CONFIG="$OPENCLAW_DIR/openclaw.json"
   WORKSPACE_PATH="$OPENCLAW_DIR/workspace"
 
-  [ -f "$SRC_CONFIG" ] || error "找不到 $SRC_CONFIG，请确认脚本和 openclaw.json 在同一目录"
-
   mkdir -p "$OPENCLAW_DIR"
+
+  info "从 GitHub 下载 openclaw.json..."
+  curl -fsSL "${GITHUB_RAW}/openclaw.json" -o "$TMP_CONFIG" \
+    || error "下载 openclaw.json 失败，请检查网络或 GitHub 链接"
 
   # 备份旧配置
   if [ -f "$DST_CONFIG" ]; then
@@ -131,17 +140,16 @@ deploy_config() {
     warn "已备份旧配置 → $BACKUP"
   fi
 
-  info "写入 openclaw.json 并替换占位符..."
+  info "替换占位符并写入 $DST_CONFIG..."
 
-  # 用 python 做替换，彻底避免 shell/perl 转义问题
   python3 - \
-    "$SRC_CONFIG" "$DST_CONFIG" "$WORKSPACE_PATH" \
+    "$TMP_CONFIG" "$DST_CONFIG" "$WORKSPACE_PATH" \
     "$LLM_BASE_URL" "$LLM_API_KEY" "$LLM_PROVIDER_ID" "$LLM_MODEL_ID" \
     "$GATEWAY_TOKEN" "$BROWSER_PATH" \
     "$BRAVE_SEARCH_API_KEY" "$FEISHU_APP_ID" "$FEISHU_APP_SECRET" \
     "$TELEGRAM_BOT_TOKEN" "$WHATSAPP_ALLOW_FROM" \
     <<'PYEOF'
-import sys, json, re
+import sys, json
 
 src, dst, workspace, \
   llm_base_url, llm_api_key, llm_provider_id, llm_model_id, \
@@ -172,8 +180,7 @@ for placeholder, value in replacements.items():
 # whatsapp allowFrom：把 ["${WHATSAPP_ALLOW_FROM}"] 替换为正确的 JSON 数组
 if whatsapp_allow_from:
     numbers = [n.strip() for n in whatsapp_allow_from.split(',') if n.strip()]
-    allow_json = json.dumps(numbers)
-    c = c.replace('["${WHATSAPP_ALLOW_FROM}"]', allow_json)
+    c = c.replace('["${WHATSAPP_ALLOW_FROM}"]', json.dumps(numbers))
 else:
     c = c.replace('"${WHATSAPP_ALLOW_FROM}"', '')
     c = c.replace('[""]', '[]')
@@ -182,7 +189,9 @@ with open(dst, 'w') as f:
     f.write(c)
 PYEOF
 
-  # ── 可选模块：key 为空则 python 关闭 enabled ──────────
+  rm -f "$TMP_CONFIG"
+
+  # ── 可选模块：key 为空则关闭 enabled ──────────────────
 
   if [ -z "$BRAVE_SEARCH_API_KEY" ]; then
     info "关闭 tools.web.search..."
@@ -243,32 +252,43 @@ with open('$DST_CONFIG', 'w') as f: f.write(c)
 }
 
 # ───────────────────────────────────────────────────────
-# 4. 部署 workspace/*.md
+# 4. 部署 workspace/*.md（从 GitHub 逐个下载）
 # ───────────────────────────────────────────────────────
 deploy_workspace() {
-  SRC_WS="$SCRIPT_DIR/workspace"
   DST_WS="$OPENCLAW_DIR/workspace"
-
-  [ -d "$SRC_WS" ] || error "找不到 $SRC_WS 目录"
-
   mkdir -p "$DST_WS"
 
-  for MD_FILE in "$SRC_WS"/*.md; do
-    FNAME=$(basename "$MD_FILE")
+  # workspace 下的 md 文件列表
+  MD_FILES=(
+    "AGENTS.md"
+    "HEARTBEAT.md"
+    "IDENTITY.md"
+    "MEMORY.md"
+    "SOUL.md"
+    "TOOLS.md"
+    "USER.md"
+  )
+
+  info "从 GitHub 下载 workspace 文件..."
+  for FNAME in "${MD_FILES[@]}"; do
     DST_FILE="$DST_WS/$FNAME"
+    URL="${GITHUB_RAW}/workspace/${FNAME}"
 
     if [ -f "$DST_FILE" ]; then
       read -p "  $FNAME 已存在，覆盖？(y/N): " OW
       [[ "$OW" =~ ^[Yy]$ ]] || { warn "跳过 $FNAME"; continue; }
     fi
 
-    cp "$MD_FILE" "$DST_FILE"
-    success "  已部署 $FNAME"
+    if curl -fsSL "$URL" -o "$DST_FILE" 2>/dev/null; then
+      success "  已部署 $FNAME"
+    else
+      warn "  下载失败，跳过 $FNAME（可稍后手动放到 $DST_WS/）"
+    fi
   done
 }
 
 # ───────────────────────────────────────────────────────
-# 5. WhatsApp 扫码绑定（仅当 WHATSAPP_ALLOW_FROM 有值时）
+# 5. WhatsApp 扫码绑定
 # ───────────────────────────────────────────────────────
 setup_whatsapp() {
   if [ -z "$WHATSAPP_ALLOW_FROM" ]; then
@@ -288,7 +308,8 @@ setup_whatsapp() {
   echo ""
   read -p "  准备好了？按 Enter 开始..." _
 
-  openclaw channels login --channel whatsapp || warn "WhatsApp 绑定失败或已绑定，可稍后手动运行：openclaw channels login --channel whatsapp"
+  openclaw channels login --channel whatsapp \
+    || warn "WhatsApp 绑定失败或已绑定，可稍后手动运行：openclaw channels login --channel whatsapp"
 }
 
 # ───────────────────────────────────────────────────────
@@ -324,10 +345,9 @@ echo -e "${GREEN}✓ 安装完成！${NC}"
 echo ""
 echo "  配置文件 : $OPENCLAW_DIR/openclaw.json"
 echo "  Workspace: $OPENCLAW_DIR/workspace/"
-echo ""
 if [ -n "$WHATSAPP_ALLOW_FROM" ]; then
 echo "  WhatsApp : 已绑定，允许号码 → $WHATSAPP_ALLOW_FROM"
 fi
 echo ""
-echo "  启动命令 : openclaw start"
+echo "  启动命令 : openclaw tui"
 echo ""
