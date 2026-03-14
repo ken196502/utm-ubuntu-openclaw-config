@@ -227,11 +227,12 @@ with open('$DST_CONFIG', 'w') as f: f.write(c)
   fi
 
   if [ -z "$WHATSAPP_ALLOW_FROM" ]; then
-    info "关闭 channels.whatsapp（未填 WHATSAPP_ALLOW_FROM）..."
+    info "WHATSAPP_ALLOW_FROM 为空，关闭 whatsapp 并将 dmPolicy 改为 open..."
     python3 -c "
 import re
 with open('$DST_CONFIG', 'r') as f: c = f.read()
-c = re.sub(r'(\"whatsapp\"\s*:\s*\{[^}]*?)\"enabled\"\s*:\s*true', r'\1\"enabled\": false', c, flags=re.DOTALL)
+c = re.sub(r'(\"whatsapp\"[^}]*?)\"enabled\": true', r'\1\"enabled\": false', c, flags=re.DOTALL)
+c = re.sub(r'(\"whatsapp\"[^}]*?)\"dmPolicy\": \"allowlist\"', r'\1\"dmPolicy\": \"open\"', c, flags=re.DOTALL)
 with open('$DST_CONFIG', 'w') as f: f.write(c)
 "
     warn "WhatsApp 已禁用"
