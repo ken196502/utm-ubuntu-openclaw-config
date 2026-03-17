@@ -1,16 +1,29 @@
 # HEARTBEAT.md
 
-## 待办检查项
+## 心跳检查项
 
-### RSS 监控
-- 运行: `python3 rss-monitor.py --config rss-data --send`
-- 功能: 获取RSS最新节点（标题、日期、链接）
-- 如果文章已缓存则输出"没有新文章"
-- RSS源: https://wx.subx.fun/feed/MP_WXS_3074432418.rss
-- 自动发送节点信息到飞书
+### 1. Observer & Analyst Agent 状态检查
+- 运行: `openclaw agents list`
+- 检查 observer 和 analyst 两个专用代理是否正常配置
+- 验证 agent 目录是否存在
+- 记录每个 agent 的最后活跃时间
 
-### 子代理状态
-- 列出所有活跃的子代理
+### 2. 技能执行状态
+- observer agent 负责执行 rss-monitor-skill
+- analyst agent 负责执行 travel-recommendation-skill
+- 检查技能执行日志（如果配置了的话）
+- 汇报最近一次执行结果
 
-### 计划任务
-- 检查待处理的计划并启动代理
+### 3. Heartbeat 报告内容
+每次心跳检查后，输出：
+- ✅ observer: 配置状态 + 上次执行时间 + 结果摘要
+- ✅ analyst: 配置状态 + 上次执行时间 + 结果摘要
+- 任何异常或错误信息
+
+### 4. 自动恢复
+- 如果发现 agent 配置丢失，自动重建（使用 agents add）
+- 确保 workspace 路径使用正确的 OPENCLAW_DIR 环境变量或默认值
+
+## 计划任务
+- 定期检查并更新 RSS 数据
+- 如果有新旅行文章，分析师生成推荐摘要

@@ -1,17 +1,16 @@
 #!/bin/bash
 set -e
 
-# ═══════════════════════════════════════════════════════
-# OpenClaw 一键安装脚本
-#
-# 用法（curl 直接安装）:
-#   curl -fsSL https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master/install.sh | bash
-
-# ═══════════════════════════════════════════════════════
+# 用法: curl -fsSL https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master/install.sh | bash
 
 GITHUB_RAW="https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master"
-
 OPENCLAW_DIR="$HOME/.openclaw"
+
+# 允许 .env 中的 OPENCLAW_DIR 覆盖默认值
+if [ -f "$OPENCLAW_DIR/.env" ]; then
+  _override=$(grep -v '^\s*#' "$OPENCLAW_DIR/.env" | grep '^OPENCLAW_DIR=' | cut -d= -f2- | tr -d '"'"'")
+  [ -n "$_override" ] && OPENCLAW_DIR="$_override"
+fi
 ENV_FILE="$OPENCLAW_DIR/.env"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -20,343 +19,211 @@ success() { echo -e "${GREEN}[OK]${NC}    $1"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC}  $1"; }
 error()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-# ───────────────────────────────────────────────────────
-# 1. 加载 .env
-# ───────────────────────────────────────────────────────
+# ── 1. 校验 .env ────────────────────────────────────────
 load_env() {
   if [ ! -f "$ENV_FILE" ]; then
     warn ".env 不存在，正在生成模板到 $ENV_FILE ..."
     mkdir -p "$OPENCLAW_DIR"
     cat > "$ENV_FILE" <<'EOF'
-# ══════════════════════════════════════════════
 # OpenClaw 配置 — 填好后重新运行安装脚本
-# ══════════════════════════════════════════════
 
-# ── LLM Provider（必填）─────────────────────
+# 安装目录（可选，默认 ~/.openclaw）
+OPENCLAW_DIR=
+
+# LLM Provider（必填）
 LLM_BASE_URL=https://api.example.com/v1
 LLM_API_KEY=
 LLM_PROVIDER_ID=myprovider
 LLM_MODEL_ID=my-model-name
 
-# ── Gateway Token（必填，自行生成随机串）────
-# 生成方法: openssl rand -hex 24
+# Gateway Token（必填）生成方法: openssl rand -hex 24
 GATEWAY_TOKEN=
 
-# ── Browser（可选，留空则 OpenClaw 自动探测）
+# Browser（可选，留空则自动探测）
 BROWSER_PATH=
 
-# ── Brave Search（可选）─────────────────────
+# Brave Search（可选）
 BRAVE_SEARCH_API_KEY=
 
-# ── Feishu / Lark（可选）────────────────────
+# Feishu / Lark（必填）
 FEISHU_APP_ID=
 FEISHU_APP_SECRET=
 
-# ── Telegram（可选）─────────────────────────
+# Telegram（可选）
 TELEGRAM_BOT_TOKEN=
 
-# ── WhatsApp（可选）──────────────────────────
-# 国际格式，多个号码逗号分隔：+8613800138000,+8613900139000
-# 留空则跳过 WhatsApp 绑定
+# WhatsApp（可选）国际格式逗号分隔: +8613800138000,+8613900139000
 WHATSAPP_ALLOW_FROM=
 EOF
     chmod 600 "$ENV_FILE"
-    echo ""
-    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${YELLOW}  .env 模板已生成，请先填写后重新运行：${NC}"
-    echo ""
-    echo -e "    ${BLUE}vim $ENV_FILE${NC}"
-    echo ""
-    echo -e "  重新运行安装：${NC}"
-    echo -e "    ${BLUE}curl -fsSL ${GITHUB_RAW}/install.sh | bash${NC}"
-    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
+    echo -e "\n${YELLOW}  .env 已生成，请填写后重新运行：\n    vim $ENV_FILE${NC}\n"
     exit 1
   fi
 
-  info "加载 .env ($ENV_FILE)..."
-  set -a; source "$ENV_FILE"; set +a
+  info "校验 .env..."
+  # 在 subshell 里 source，避免污染当前环境
+  eval "$(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$' | sed 's/^/export /' )"
 
-  # 必填校验
   MISSING=()
-  [ -z "$LLM_BASE_URL" ]    && MISSING+=("LLM_BASE_URL")
-  [ -z "$LLM_API_KEY" ]     && MISSING+=("LLM_API_KEY")
-  [ -z "$LLM_PROVIDER_ID" ] && MISSING+=("LLM_PROVIDER_ID")
-  [ -z "$LLM_MODEL_ID" ]    && MISSING+=("LLM_MODEL_ID")
-  [ -z "$GATEWAY_TOKEN" ]   && MISSING+=("GATEWAY_TOKEN")
+  for v in LLM_BASE_URL LLM_API_KEY LLM_PROVIDER_ID LLM_MODEL_ID GATEWAY_TOKEN FEISHU_APP_ID FEISHU_APP_SECRET; do
+    [ -z "${!v}" ] && MISSING+=("$v")
+  done
+  [ ${#MISSING[@]} -gt 0 ] && error "必填字段未填写：$(IFS=', '; echo "${MISSING[*]}")\n请编辑 $ENV_FILE 后重新运行。"
 
-  if [ ${#MISSING[@]} -gt 0 ]; then
-    echo ""
-    error "以下必填字段未填写：$(IFS=', '; echo "${MISSING[*]}")\n请编辑 $ENV_FILE 后重新运行。"
-  fi
-
-  # 可选项提示
-  [ -z "$BROWSER_PATH" ]         && warn "BROWSER_PATH 未填，将由 OpenClaw 自动探测浏览器"
+  [ -z "$BROWSER_PATH" ]         && warn "BROWSER_PATH 未填，将自动探测"
   [ -z "$BRAVE_SEARCH_API_KEY" ] && warn "BRAVE_SEARCH_API_KEY 未填，Brave Search 将被禁用"
-  [ -z "$FEISHU_APP_ID" ]        && warn "FEISHU_APP_ID 未填，飞书集成将被禁用"
-  [ -z "$FEISHU_APP_SECRET" ]    && warn "FEISHU_APP_SECRET 未填，飞书集成将被禁用"
-  [ -z "$TELEGRAM_BOT_TOKEN" ]   && warn "TELEGRAM_BOT_TOKEN 未填，Telegram 将被禁用"
-  [ -z "$WHATSAPP_ALLOW_FROM" ]  && warn "WHATSAPP_ALLOW_FROM 未填，将跳过 WhatsApp 绑定"
-
-  success ".env 加载完成"
+  [ -z "$TELEGRAM_BOT_TOKEN" ]   && warn "TELEGRAM_BOT_TOKEN 未填，telegram 节点将被移除"
+  [ -z "$WHATSAPP_ALLOW_FROM" ]  && warn "WHATSAPP_ALLOW_FROM 未填，whatsapp 节点将被移除"
+  success ".env 校验完成"
 }
 
-# ───────────────────────────────────────────────────────
-# 2. 安装 / 更新 OpenClaw（始终执行，拿最新版）
-# ───────────────────────────────────────────────────────
+# ── 2. 安装 / 更新 OpenClaw ─────────────────────────────
 install_openclaw() {
   if command -v openclaw &>/dev/null; then
-    LOCAL_VER=$(openclaw --version 2>/dev/null | grep -oE '[0-9]+[.][0-9]+[.][0-9]+' | head -1)
-    LATEST_VER=$(curl -fsSL https://registry.npmjs.org/openclaw/latest 2>/dev/null \
+    LOCAL=$(openclaw --version 2>/dev/null | grep -oE '[0-9]+[.][0-9]+[.][0-9]+' | head -1)
+    LATEST=$(curl -fsSL https://registry.npmjs.org/openclaw/latest 2>/dev/null \
       | python3 -c "import sys,json; print(json.load(sys.stdin).get('version',''))" 2>/dev/null || echo "")
-
-    if [ -n "$LATEST_VER" ] && [ "$LOCAL_VER" = "$LATEST_VER" ]; then
-      success "OpenClaw 已是最新版 $LOCAL_VER，跳过安装"
-      return
-    else
-      info "本地版本 $LOCAL_VER，最新版 $LATEST_VER，开始更新..."
-    fi
+    [ -n "$LATEST" ] && [ "$LOCAL" = "$LATEST" ] && { success "OpenClaw $LOCAL 已是最新，跳过"; return; }
+    info "更新 $LOCAL → $LATEST ..."
   else
-    info "未检测到 OpenClaw，开始全新安装..."
+    info "安装 OpenClaw..."
   fi
-
-  curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh \
-    | bash -s -- --no-prompt --no-onboard
-
-  NEW_VER=$(openclaw --version 2>/dev/null | grep -oE '[0-9]+[.][0-9]+[.][0-9]+' | head -1)
-  success "OpenClaw 安装/更新完成，当前版本: $NEW_VER"
+  curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --no-prompt --no-onboard
+  success "OpenClaw $(openclaw --version 2>/dev/null | grep -oE '[0-9]+[.][0-9]+[.][0-9]+' | head -1) 安装完成"
 }
 
-# ───────────────────────────────────────────────────────
-# 3. 部署 openclaw.json（从 GitHub 下载后替换占位符）
-# ───────────────────────────────────────────────────────
+# ── 3. 部署 openclaw.json ───────────────────────────────
 deploy_config() {
-  TMP_CONFIG="$(mktemp /tmp/openclaw_config.XXXXXX.json)"
-  DST_CONFIG="$OPENCLAW_DIR/openclaw.json"
-  WORKSPACE_PATH="$OPENCLAW_DIR/workspace"
-
+  DST="$OPENCLAW_DIR/openclaw.json"
   mkdir -p "$OPENCLAW_DIR"
+  [ -f "$DST" ] && cp "$DST" "$DST.bak.$(date +%Y%m%d_%H%M%S)" && warn "已备份旧配置"
 
-  info "从 GitHub 下载 openclaw.json..."
-  curl -fsSL "${GITHUB_RAW}/openclaw.json" -o "$TMP_CONFIG" \
-    || error "下载 openclaw.json 失败，请检查网络或 GitHub 链接"
+  info "下载 openclaw.json..."
+  curl -fsSL "${GITHUB_RAW}/openclaw.json" -o "$DST" || error "下载失败"
 
-  # 备份旧配置
-  if [ -f "$DST_CONFIG" ]; then
-    BACKUP="$DST_CONFIG.bak.$(date +%Y%m%d_%H%M%S)"
-    cp "$DST_CONFIG" "$BACKUP"
-    warn "已备份旧配置 → $BACKUP"
-  fi
+  python3 - "$DST" "$OPENCLAW_DIR" "$LLM_PROVIDER_ID" "$LLM_MODEL_ID" \
+    "$BRAVE_SEARCH_API_KEY" "$BROWSER_PATH" "$TELEGRAM_BOT_TOKEN" "$WHATSAPP_ALLOW_FROM" <<'PYEOF'
+import json, sys
+dst, odir, pid, mid, brave, browser, telegram, whatsapp = sys.argv[1:]
+full = pid + '/' + mid
 
-  info "替换占位符并写入 $DST_CONFIG..."
+with open(dst) as f: c = f.read()
+# 路径占位符（顺序：长串优先）
+for old, new in [
+  ('~/.openclaw/workspace-observer', odir + '/workspace-observer'),
+  ('~/.openclaw/workspace-analyst',  odir + '/workspace-analyst'),
+  ('~/.openclaw/workspace',          odir + '/workspace'),
+  ('~/.openclaw',                    odir),
+]:
+    c = c.replace(old, new)
 
-  python3 - \
-    "$TMP_CONFIG" "$DST_CONFIG" "$WORKSPACE_PATH" \
-    "$LLM_BASE_URL" "$LLM_API_KEY" "$LLM_PROVIDER_ID" "$LLM_MODEL_ID" \
-    "$GATEWAY_TOKEN" "$BROWSER_PATH" \
-    "$BRAVE_SEARCH_API_KEY" "$FEISHU_APP_ID" "$FEISHU_APP_SECRET" \
-    "$TELEGRAM_BOT_TOKEN" "$WHATSAPP_ALLOW_FROM" \
-    <<'PYEOF'
-import sys, json
+c = json.loads(c)
 
-src, dst, workspace, \
-  llm_base_url, llm_api_key, llm_provider_id, llm_model_id, \
-  gateway_token, browser_path, \
-  brave_key, feishu_id, feishu_secret, \
-  telegram_token, whatsapp_allow_from = sys.argv[1:]
+# providers object key
+providers = c.setdefault('models', {}).setdefault('providers', {})
+if '${LLM_PROVIDER_ID}' in providers:
+    providers[pid] = providers.pop('${LLM_PROVIDER_ID}')
+for m in providers.get(pid, {}).get('models', []):
+    if m.get('id')   == '${LLM_MODEL_ID}': m['id']   = mid
+    if m.get('name') == '${LLM_MODEL_ID}': m['name'] = mid
 
-with open(src, 'r') as f:
-    c = f.read()
+# agents defaults
+defaults = c.setdefault('agents', {}).setdefault('defaults', {})
+if defaults.get('model', {}).get('primary') == '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}':
+    defaults['model']['primary'] = full
+am = defaults.get('models', {})
+if '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}' in am:
+    am[full] = am.pop('${LLM_PROVIDER_ID}/${LLM_MODEL_ID}')
 
-replacements = {
-    '${LLM_BASE_URL}':         llm_base_url,
-    '${LLM_API_KEY}':          llm_api_key,
-    '${LLM_PROVIDER_ID}':      llm_provider_id,
-    '${LLM_MODEL_ID}':         llm_model_id,
-    '${GATEWAY_TOKEN}':        gateway_token,
-    '${BROWSER_PATH}':         browser_path,
-    '${BRAVE_SEARCH_API_KEY}': brave_key,
-    '${FEISHU_APP_ID}':        feishu_id,
-    '${FEISHU_APP_SECRET}':    feishu_secret,
-    '${TELEGRAM_BOT_TOKEN}':   telegram_token,
-    '~/.openclaw/workspace':   workspace,
-}
+# 可选 channel 节点删除
+ch = c.setdefault('channels', {})
+if not telegram: ch.pop('telegram', None)
+if not whatsapp: ch.pop('whatsapp', None)
 
-for placeholder, value in replacements.items():
-    c = c.replace(placeholder, value)
+# Brave / Browser
+if not brave:
+    try: c['tools']['web']['search']['enabled'] = False
+    except KeyError: pass
+if not browser:
+    try: c['browser'].pop('executablePath', None)
+    except KeyError: pass
 
-# whatsapp allowFrom：把 ["${WHATSAPP_ALLOW_FROM}"] 替换为正确的 JSON 数组
-if whatsapp_allow_from:
-    numbers = [n.strip() for n in whatsapp_allow_from.split(',') if n.strip()]
-    c = c.replace('["${WHATSAPP_ALLOW_FROM}"]', json.dumps(numbers))
-else:
-    c = c.replace('"${WHATSAPP_ALLOW_FROM}"', '')
-    c = c.replace('[""]', '[]')
-
-with open(dst, 'w') as f:
-    f.write(c)
+with open(dst, 'w') as f: json.dump(c, f, indent=2, ensure_ascii=False)
 PYEOF
 
-  rm -f "$TMP_CONFIG"
-
-  # ── 可选模块：key 为空则关闭 enabled ──────────────────
-
-  if [ -z "$BRAVE_SEARCH_API_KEY" ]; then
-    info "关闭 tools.web.search..."
-    python3 -c "
-import re
-with open('$DST_CONFIG', 'r') as f: c = f.read()
-c = re.sub(r'(\"search\"\s*:\s*\{[^}]*?)\"enabled\"\s*:\s*true', r'\1\"enabled\": false', c, flags=re.DOTALL)
-with open('$DST_CONFIG', 'w') as f: f.write(c)
-"
-    warn "Brave Search 已禁用"
-  fi
-
-  if [ -z "$FEISHU_APP_ID" ] || [ -z "$FEISHU_APP_SECRET" ]; then
-    info "关闭 channels.feishu 和 plugins.feishu..."
-    python3 -c "
-import re
-with open('$DST_CONFIG', 'r') as f: c = f.read()
-c = re.sub(r'(\"feishu\"\s*:\s*\{[^{]*?)\"enabled\"\s*:\s*true', r'\1\"enabled\": false', c, flags=re.DOTALL)
-with open('$DST_CONFIG', 'w') as f: f.write(c)
-"
-    warn "飞书集成已禁用"
-  fi
-
-  if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
-    info "关闭 channels.telegram..."
-    python3 -c "
-import re
-with open('$DST_CONFIG', 'r') as f: c = f.read()
-c = re.sub(r'(\"telegram\"\s*:\s*\{[^}]*?)\"enabled\"\s*:\s*true', r'\1\"enabled\": false', c, flags=re.DOTALL)
-with open('$DST_CONFIG', 'w') as f: f.write(c)
-"
-    warn "Telegram 已禁用"
-  fi
-
-  if [ -z "$WHATSAPP_ALLOW_FROM" ]; then
-    info "WHATSAPP_ALLOW_FROM 为空，关闭 whatsapp 并将 dmPolicy 改为 open..."
-    python3 -c "
-import re
-with open('$DST_CONFIG', 'r') as f: c = f.read()
-c = re.sub(r'(\"whatsapp\"[^}]*?)\"enabled\": true', r'\1\"enabled\": false', c, flags=re.DOTALL)
-c = re.sub(r'(\"whatsapp\"[^}]*?)\"dmPolicy\": \"allowlist\"', r'\1\"dmPolicy\": \"open\"', c, flags=re.DOTALL)
-with open('$DST_CONFIG', 'w') as f: f.write(c)
-"
-    warn "WhatsApp 已禁用"
-  fi
-
-  if [ -z "$BROWSER_PATH" ]; then
-    info "移除 browser.executablePath（使用自动探测）..."
-    python3 -c "
-import re
-with open('$DST_CONFIG', 'r') as f: c = f.read()
-c = re.sub(r',?\s*\"executablePath\"\s*:\s*\"\"', '', c)
-with open('$DST_CONFIG', 'w') as f: f.write(c)
-"
-  fi
-
-  chmod 600 "$DST_CONFIG"
-  success "openclaw.json 已写入 $DST_CONFIG"
+  chmod 600 "$DST"
+  success "openclaw.json 已写入"
 }
 
-# ───────────────────────────────────────────────────────
-# 4. 部署 workspace/*.md（从 GitHub 逐个下载）
-# ───────────────────────────────────────────────────────
+# ── 4. 部署 workspace md ────────────────────────────────
 deploy_workspace() {
   DST_WS="$OPENCLAW_DIR/workspace"
   mkdir -p "$DST_WS"
-
-  # workspace 下的 md 文件列表
-  MD_FILES=(
-    "AGENTS.md"
-    "HEARTBEAT.md"
-    "IDENTITY.md"
-    "MEMORY.md"
-    "SOUL.md"
-    "TOOLS.md"
-    "USER.md"
-  )
-
-  info "从 GitHub 下载 workspace 文件..."
-  for FNAME in "${MD_FILES[@]}"; do
-    DST_FILE="$DST_WS/$FNAME"
-    URL="${GITHUB_RAW}/workspace/${FNAME}"
-
-    if [ -f "$DST_FILE" ]; then
-      read -p "  $FNAME 已存在，覆盖？(y/N): " OW
-      [[ "$OW" =~ ^[Yy]$ ]] || { warn "跳过 $FNAME"; continue; }
+  info "下载 workspace 文件..."
+  for F in AGENTS.md HEARTBEAT.md IDENTITY.md MEMORY.md SOUL.md TOOLS.md USER.md; do
+    DST_F="$DST_WS/$F"
+    if [ -f "$DST_F" ]; then
+      read -p "  $F 已存在，覆盖？(y/N): " OW
+      [[ "$OW" =~ ^[Yy]$ ]] || { warn "跳过 $F"; continue; }
     fi
-
-    if curl -fsSL "$URL" -o "$DST_FILE" 2>/dev/null; then
-      success "  已部署 $FNAME"
-    else
-      warn "  下载失败，跳过 $FNAME（可稍后手动放到 $DST_WS/）"
-    fi
+    curl -fsSL "${GITHUB_RAW}/workspace/${F}" -o "$DST_F" 2>/dev/null \
+      && success "  $F" || warn "  $F 下载失败"
   done
 }
 
-# ───────────────────────────────────────────────────────
-# 5. WhatsApp 扫码绑定
-# ───────────────────────────────────────────────────────
-setup_whatsapp() {
-  if [ -z "$WHATSAPP_ALLOW_FROM" ]; then
-    return
-  fi
+# ── 5. 添加 agents（已存在则跳过）─────────────────────────
+setup_agents() {
+  command -v openclaw &>/dev/null || { warn "openclaw 未找到，跳过 agents 配置"; return; }
 
-  echo ""
-  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo -e "${BLUE}  WhatsApp 绑定${NC}"
-  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo ""
-  echo "  即将显示 QR code，请用手机扫码："
-  echo ""
-  echo "    1. 打开 WhatsApp"
-  echo "    2. Settings → Linked Devices → Link a Device"
-  echo "    3. 扫描下方二维码"
-  echo ""
-  read -p "  准备好了？按 Enter 开始..." _
+  for AGENT_ID in observer analyst; do
+    WS="$OPENCLAW_DIR/workspace-$AGENT_ID"
+    openclaw agents list 2>/dev/null | grep -q "^$AGENT_ID\b" && { success "agent $AGENT_ID 已存在，跳过"; continue; }
 
-  openclaw channels login --channel whatsapp \
-    || warn "WhatsApp 绑定失败或已绑定，可稍后手动运行：openclaw channels login --channel whatsapp"
+    info "添加 agent: $AGENT_ID ..."
+    openclaw agents add "$AGENT_ID" --non-interactive \
+      --agent-dir "$OPENCLAW_DIR/agents/$AGENT_ID" --workspace "$WS" \
+      || { warn "agent $AGENT_ID 添加失败"; continue; }
+    success "agent $AGENT_ID 已添加"
+
+    mkdir -p "$WS"
+    case "$AGENT_ID" in
+      observer)
+        echo "你是 AI 资讯侦察员，每次 heartbeat 用 browser subagent 搜集过去数小时最新 AI 资讯（arxiv、HuggingFace、主流科技博客），将原始结果写入 ~/.openclaw/workspace-analyst/inbox/news-{date}-{hour}.md。" > "$WS/SOUL.md"
+        echo "用 browser subagent 搜索过去数小时最新 AI 资讯，将结果写入 ~/.openclaw/workspace-analyst/inbox/news-{date}-{hour}.md，写完回复 HEARTBEAT_OK。" > "$WS/HEARTBEAT.md"
+        ;;
+      analyst)
+        echo "你是 AI 资讯分析师，每次 heartbeat 检查 inbox/ 目录，对 observer 投递的资讯文件逐一用 subagent 进行分析点评，将结果写入 memory/analysis-{date}.md 并通过飞书发送摘要。" > "$WS/SOUL.md"
+        echo "检查 inbox/ 目录，有未处理文件则用 subagent 分析点评并写入 memory/analysis-{date}.md，通过飞书发送摘要；无文件则回复 HEARTBEAT_OK。" > "$WS/HEARTBEAT.md"
+        ;;
+    esac
+    success "  $AGENT_ID SOUL.md / HEARTBEAT.md 已写入"
+  done
 }
 
-# ───────────────────────────────────────────────────────
-# 6. 验证
-# ───────────────────────────────────────────────────────
+# ── 6. 重启 gateway 并验证 ──────────────────────────────
 verify() {
-  if command -v openclaw &>/dev/null; then
-    info "运行 openclaw doctor --fix..."
-    openclaw doctor --fix || warn "doctor 报告了问题，请检查上方输出"
-  else
-    warn "openclaw 未找到，请重新加载 shell 后手动运行: openclaw doctor --fix"
-  fi
+  command -v openclaw &>/dev/null || { warn "openclaw 未找到，请重新加载 shell"; return; }
+  info "运行 doctor --fix..."
+  openclaw doctor --fix || warn "doctor 报告了问题"
+  info "重启 gateway..."
+  openclaw gateway stop 2>/dev/null || true
+  sleep 3
+  openclaw gateway install 2>/dev/null || true
+  sleep 15
+  openclaw gateway status || warn "gateway 状态异常"
+  success "gateway 已重启"
 }
 
-# ───────────────────────────────────────────────────────
-# 主流程
-# ───────────────────────────────────────────────────────
-echo ""
-echo -e "${BLUE}╔══════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║     OpenClaw 一键安装脚本             ║${NC}"
-echo -e "${BLUE}╚══════════════════════════════════════╝${NC}"
-echo ""
+# ── 主流程 ──────────────────────────────────────────────
+echo -e "\n${BLUE}╔══════════════════════════════════════╗
+║     OpenClaw 一键安装脚本             ║
+╚══════════════════════════════════════╝${NC}\n"
 
 load_env
 install_openclaw
 deploy_config
 deploy_workspace
-setup_whatsapp
+setup_agents
 verify
 
-echo ""
-echo -e "${GREEN}✓ 安装完成！${NC}"
-echo ""
-echo "  配置文件 : $OPENCLAW_DIR/openclaw.json"
-echo "  Workspace: $OPENCLAW_DIR/workspace/"
-if [ -n "$WHATSAPP_ALLOW_FROM" ]; then
-echo "  WhatsApp : 已绑定，允许号码 → $WHATSAPP_ALLOW_FROM"
-fi
-echo ""
-echo "  启动命令 : openclaw tui"
-echo ""
+echo -e "\n${GREEN}✓ 安装完成！${NC}\n  配置: $OPENCLAW_DIR/openclaw.json\n  启动: openclaw tui\n"
