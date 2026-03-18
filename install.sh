@@ -177,7 +177,7 @@ setup_agents() {
 
   for AGENT_ID in observer analyst; do
     WS="$OPENCLAW_DIR/workspace-$AGENT_ID"
-    openclaw agents list 2>/dev/null | grep -q "^$AGENT_ID\b" && { success "agent $AGENT_ID 已存在，跳过"; continue; }
+    openclaw agents list 2>/dev/null | grep -qi "\b$AGENT_ID\b" && { success "agent $AGENT_ID 已存在，跳过"; continue; }
 
     info "添加 agent: $AGENT_ID ..."
     openclaw agents add "$AGENT_ID" --non-interactive \
@@ -202,16 +202,7 @@ setup_agents() {
 
 # ── 6. 重启 gateway 并验证 ──────────────────────────────
 verify() {
-  command -v openclaw &>/dev/null || { warn "openclaw 未找到，请重新加载 shell"; return; }
-  info "运行 doctor --fix..."
-  openclaw doctor --fix || warn "doctor 报告了问题"
-  info "重启 gateway..."
-  openclaw gateway stop 2>/dev/null || true
-  sleep 3
-  openclaw gateway install 2>/dev/null || true
-  sleep 15
-  openclaw gateway status || warn "gateway 状态异常"
-  success "gateway 已重启"
+  "$OPENCLAW_DIR/verify.sh"
 }
 
 # ── 主流程 ──────────────────────────────────────────────
