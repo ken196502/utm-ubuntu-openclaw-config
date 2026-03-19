@@ -86,6 +86,12 @@
     }
   },
   "channels": {
+    "slack": {
+      "enabled": true,
+      "mode": "socket",
+      "appToken": "${SLACK_APP_TOKEN}",
+      "botToken": "${SLACK_BOT_TOKEN}"
+    },
     "whatsapp": {
       "enabled": true,
       "dmPolicy": "allowlist",
@@ -153,6 +159,21 @@
       ]
     }
   },
+  "acp": {
+    "enabled": true,
+    "dispatch": { "enabled": true },
+    "backend": "acpx",
+    "defaultAgent": "opencode",
+    "allowedAgents": ["pi", "claude", "codex", "opencode", "gemini"],
+    "maxConcurrentSessions": 8,
+    "stream": {
+      "coalesceIdleMs": 300,
+      "maxChunkChars": 1200
+    },
+    "runtime": {
+      "ttlMinutes": 120
+    }
+  },
   "skills": {
     "install": {
       "nodeManager": "pnpm"
@@ -160,7 +181,14 @@
   },
   "plugins": {
     "entries": {
-      "feishu": { "enabled": true }
+      "feishu": { "enabled": true },
+      "acpx": {
+        "enabled": true,
+        "config": {
+          "permissionMode": "approve-all",
+          "nonInteractivePermissions": "deny"
+        }
+      }
     }
   }
 }

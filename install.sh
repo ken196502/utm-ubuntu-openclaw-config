@@ -13,6 +13,13 @@ if [ -f "$OPENCLAW_DIR/.env" ]; then
 fi
 ENV_FILE="$OPENCLAW_DIR/.env"
 
+# 检测操作系统并选择默认编辑器
+if [[ "$OSTYPE" == "darwin"* ]] || [[ "$(uname -s)" == "Darwin" ]]; then
+  EDITOR="nano"
+else
+  EDITOR="vim"
+fi
+
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 info()    { echo -e "${BLUE}[INFO]${NC}  $1"; }
 success() { echo -e "${GREEN}[OK]${NC}    $1"; }
@@ -49,6 +56,10 @@ BRAVE_SEARCH_API_KEY=
 FEISHU_APP_ID=
 FEISHU_APP_SECRET=
 
+# Slack（可选）
+SLACK_APP_TOKEN=
+SLACK_BOT_TOKEN=
+
 # Telegram（可选）
 TELEGRAM_BOT_TOKEN=
 
@@ -56,13 +67,12 @@ TELEGRAM_BOT_TOKEN=
 WHATSAPP_ALLOW_FROM=
 EOF
     chmod 600 "$ENV_FILE"
-    echo -e "\n${YELLOW}  .env 已生成，请填写后重新运行：\n    vim $ENV_FILE${NC}\n"
+    echo -e "\n${YELLOW}  .env 已生成，请填写后重新运行：\n    $EDITOR $ENV_FILE${NC}\n"
     exit 1
   fi
 
   info "校验 .env..."
-  # 在 subshell 里 source，避免污染当前环境
-  eval "$(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$' | sed 's/^/export /' )"
+  eval "$(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$' | sed 's/^/export /')"
 
   MISSING=()
   for v in LLM_BASE_URL LLM_API_KEY LLM_PROVIDER_ID LLM_MODEL_ID GATEWAY_TOKEN FEISHU_APP_ID FEISHU_APP_SECRET; do
@@ -72,6 +82,7 @@ EOF
 
   [ -z "$BROWSER_PATH" ]         && warn "BROWSER_PATH 未填，将自动探测"
   [ -z "$BRAVE_SEARCH_API_KEY" ] && warn "BRAVE_SEARCH_API_KEY 未填，Brave Search 将被禁用"
+  [ -z "$SLACK_APP_TOKEN" ]      && warn "SLACK_APP_TOKEN 未填，slack 节点将被移除"
   [ -z "$TELEGRAM_BOT_TOKEN" ]   && warn "TELEGRAM_BOT_TOKEN 未填，telegram 节点将被移除"
   [ -z "$WHATSAPP_ALLOW_FROM" ]  && warn "WHATSAPP_ALLOW_FROM 未填，whatsapp 节点将被移除"
   success ".env 校验完成"
@@ -102,13 +113,13 @@ deploy_config() {
   curl -fsSL "${GITHUB_RAW}/openclaw.json" -o "$DST" || error "下载失败"
 
   python3 - "$DST" "$OPENCLAW_DIR" "$LLM_PROVIDER_ID" "$LLM_MODEL_ID" \
-    "$BRAVE_SEARCH_API_KEY" "$BROWSER_PATH" "$TELEGRAM_BOT_TOKEN" "$WHATSAPP_ALLOW_FROM" <<'PYEOF'
+    "$BRAVE_SEARCH_API_KEY" "$BROWSER_PATH" \
+    "$SLACK_APP_TOKEN" "$TELEGRAM_BOT_TOKEN" "$WHATSAPP_ALLOW_FROM" <<'PYEOF'
 import json, sys
-dst, odir, pid, mid, brave, browser, telegram, whatsapp = sys.argv[1:]
+dst, odir, pid, mid, brave, browser, slack, telegram, whatsapp = sys.argv[1:]
 full = pid + '/' + mid
 
 with open(dst) as f: c = f.read()
-# 路径占位符（顺序：长串优先）
 for old, new in [
   ('~/.openclaw/workspace-observer', odir + '/workspace-observer'),
   ('~/.openclaw/workspace-analyst',  odir + '/workspace-analyst'),
@@ -137,6 +148,7 @@ if '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}' in am:
 
 # 可选 channel 节点删除
 ch = c.setdefault('channels', {})
+if not slack:    ch.pop('slack',    None)
 if not telegram: ch.pop('telegram', None)
 if not whatsapp: ch.pop('whatsapp', None)
 
@@ -202,7 +214,16 @@ setup_agents() {
 
 # ── 6. 重启 gateway 并验证 ──────────────────────────────
 verify() {
-  "$OPENCLAW_DIR/verify.sh"
+  command -v openclaw &>/dev/null || { warn "openclaw 未找到，请重新加载 shell"; return; }
+  info "运行 doctor --fix..."
+  openclaw doctor --fix || warn "doctor 报告了问题"
+  info "重启 gateway..."
+  openclaw gateway stop 2>/dev/null || true
+  sleep 3
+  openclaw gateway install 2>/dev/null || true
+  sleep 15
+  openclaw gateway status || warn "gateway 状态异常"
+  success "gateway 已重启"
 }
 
 # ── 主流程 ──────────────────────────────────────────────
