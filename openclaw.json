@@ -90,7 +90,8 @@
       "enabled": true,
       "mode": "socket",
       "appToken": "${SLACK_APP_TOKEN}",
-      "botToken": "${SLACK_BOT_TOKEN}"
+      "botToken": "${SLACK_BOT_TOKEN}",
+      "groupPolicy": "open" 
     },
     "whatsapp": {
       "enabled": true,
