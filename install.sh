@@ -200,11 +200,11 @@ setup_agents() {
     mkdir -p "$WS"
     case "$AGENT_ID" in
       observer)
-        echo "你是 AI 资讯侦察员，每次 heartbeat 用 browser subagent 搜集过去数小时最新 AI 资讯（arxiv、HuggingFace、主流科技博客），将原始结果写入 ~/.openclaw/workspace-analyst/inbox/news-{date}-{hour}.md。" > "$WS/SOUL.md"
+        echo "你是资讯侦察员，每次 heartbeat 用 browser subagent 搜集过去数小时最新 AI 资讯（arxiv、HuggingFace、主流科技博客），将原始结果写入 ~/.openclaw/workspace-analyst/inbox/news-{date}-{hour}.md。" > "$WS/SOUL.md"
         echo "用 browser subagent 搜索过去数小时最新 AI 资讯，将结果写入 ~/.openclaw/workspace-analyst/inbox/news-{date}-{hour}.md，写完回复 HEARTBEAT_OK。" > "$WS/HEARTBEAT.md"
         ;;
       analyst)
-        echo "你是 AI 资讯分析师，每次 heartbeat 检查 inbox/ 目录，对 observer 投递的资讯文件逐一用 subagent 进行分析点评，将结果写入 memory/analysis-{date}.md 并通过飞书发送摘要。" > "$WS/SOUL.md"
+        echo "你是资讯分析师，每次 heartbeat 检查 inbox/ 目录，对 observer 投递的资讯文件逐一用 subagent 进行分析点评，将结果写入 memory/analysis-{date}.md 并通过飞书发送摘要。" > "$WS/SOUL.md"
         echo "检查 inbox/ 目录，有未处理文件则用 subagent 分析点评并写入 memory/analysis-{date}.md，通过飞书发送摘要；无文件则回复 HEARTBEAT_OK。" > "$WS/HEARTBEAT.md"
         ;;
     esac
