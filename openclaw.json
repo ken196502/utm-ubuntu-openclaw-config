@@ -13,7 +13,9 @@
             "name": "${LLM_MODEL_ID}",
             "api": "openai-completions",
             "reasoning": false,
-            "input": ["text"],
+            "input": [
+              "text"
+            ],
             "cost": {
               "input": 0,
               "output": 0,
@@ -61,7 +63,9 @@
         "timeoutSeconds": 30
       }
     },
-    "allow": ["*"],
+    "allow": [
+      "*"
+    ],
     "sessions": {
       "visibility": "all"
     }
@@ -79,9 +83,15 @@
     "internal": {
       "enabled": true,
       "entries": {
-        "session-memory": { "enabled": true },
-        "command-logger": { "enabled": true },
-        "boot-md":        { "enabled": true }
+        "session-memory": {
+          "enabled": true
+        },
+        "command-logger": {
+          "enabled": true
+        },
+        "boot-md": {
+          "enabled": true
+        }
       }
     }
   },
@@ -90,13 +100,14 @@
       "enabled": true,
       "mode": "socket",
       "appToken": "${SLACK_APP_TOKEN}",
-      "botToken": "${SLACK_BOT_TOKEN}",
-      "groupPolicy": "open" 
+      "botToken": "${SLACK_BOT_TOKEN}"
     },
     "whatsapp": {
       "enabled": true,
       "dmPolicy": "allowlist",
-      "allowFrom": ["${WHATSAPP_ALLOW_FROM}"],
+      "allowFrom": [
+        "${WHATSAPP_ALLOW_FROM}"
+      ],
       "groupPolicy": "open",
       "debounceMs": 0,
       "mediaMaxMb": 50
@@ -143,7 +154,7 @@
     "bind": "loopback",
     "auth": {
       "mode": "token",
-      "token": "${GATEWAY_TOKEN}"
+      "token": "${OPENCLAW_GATEWAY_TOKEN}"
     },
     "tailscale": {
       "mode": "off",
@@ -162,10 +173,18 @@
   },
   "acp": {
     "enabled": true,
-    "dispatch": { "enabled": true },
+    "dispatch": {
+      "enabled": true
+    },
     "backend": "acpx",
     "defaultAgent": "opencode",
-    "allowedAgents": ["pi", "claude", "codex", "opencode", "gemini"],
+    "allowedAgents": [
+      "pi",
+      "claude",
+      "codex",
+      "opencode",
+      "gemini"
+    ],
     "maxConcurrentSessions": 8,
     "stream": {
       "coalesceIdleMs": 300,
@@ -182,7 +201,9 @@
   },
   "plugins": {
     "entries": {
-      "feishu": { "enabled": true },
+      "feishu": {
+        "enabled": true
+      },
       "acpx": {
         "enabled": true,
         "config": {
