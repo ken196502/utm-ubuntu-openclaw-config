@@ -73,7 +73,7 @@ EOF
   ENV_FILE="$OPENCLAW_DIR/.env"
 
   MISSING=()
-  for v in LLM_BASE_URL LLM_API_KEY LLM_PROVIDER_ID LLM_MODEL_ID OPENCLAW_GATEWAY_TOKEN; do
+  for v in LLM_BASE_URL LLM_API_KEY LLM_PROVIDER_ID LLM_MODEL_ID GATEWAY_TOKEN; do
     [ -z "${!v}" ] && MISSING+=("$v")
   done
   [ ${#MISSING[@]} -gt 0 ] && error "必填字段未填写：$(IFS=', '; echo "${MISSING[*]}")\n请编辑 $ENV_FILE 后重新运行。"
@@ -111,11 +111,11 @@ deploy_config() {
   info "下载 openclaw.json..."
   curl -fsSL "${GITHUB_RAW}/openclaw.json" -o "$DST" || error "下载失败"
 
-  python3 - "$DST" "$OPENCLAW_DIR" "$LLM_PROVIDER_ID" "$LLM_MODEL_ID" \
+  python3 - "$DST" "$OPENCLAW_DIR" "$LLM_PROVIDER_ID" "$LLM_MODEL_ID" "$LLM_API_KEY" \
     "$BRAVE_SEARCH_API_KEY" "$BROWSER_PATH" \
     "$FEISHU_APP_ID" "$SLACK_APP_TOKEN" "$TELEGRAM_BOT_TOKEN" "$WHATSAPP_ALLOW_FROM" <<'PYEOF'
 import json, sys
-dst, odir, pid, mid, brave, browser, feishu, slack, telegram, whatsapp = sys.argv[1:]
+dst, odir, pid, mid, api_key, brave, browser, feishu, slack, telegram, whatsapp = sys.argv[1:]
 full = pid + '/' + mid
 
 with open(dst) as f: c = f.read()
@@ -133,6 +133,8 @@ c = json.loads(c)
 providers = c.setdefault('models', {}).setdefault('providers', {})
 if '${LLM_PROVIDER_ID}' in providers:
     providers[pid] = providers.pop('${LLM_PROVIDER_ID}')
+if pid in providers:
+    providers[pid]['apiKey'] = api_key
 for m in providers.get(pid, {}).get('models', []):
     if m.get('id')   == '${LLM_MODEL_ID}': m['id']   = mid
     if m.get('name') == '${LLM_MODEL_ID}': m['name'] = mid
