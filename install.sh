@@ -73,7 +73,7 @@ EOF
   ENV_FILE="$OPENCLAW_DIR/.env"
 
   MISSING=()
-  for v in LLM_BASE_URL LLM_API_KEY LLM_PROVIDER_ID LLM_MODEL_ID GATEWAY_TOKEN; do
+  for v in LLM_BASE_URL LLM_API_KEY LLM_PROVIDER_ID LLM_MODEL_ID OPENCLAW_GATEWAY_TOKEN; do
     [ -z "${!v}" ] && MISSING+=("$v")
   done
   [ ${#MISSING[@]} -gt 0 ] && error "必填字段未填写：$(IFS=', '; echo "${MISSING[*]}")\n请编辑 $ENV_FILE 后重新运行。"
