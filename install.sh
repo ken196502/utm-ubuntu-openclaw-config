@@ -13,13 +13,6 @@ if [ -f "$OPENCLAW_DIR/.env" ]; then
 fi
 ENV_FILE="$OPENCLAW_DIR/.env"
 
-# 检测操作系统并选择默认编辑器
-if [[ "$OSTYPE" == "darwin"* ]] || [[ "$(uname -s)" == "Darwin" ]]; then
-  EDITOR="nano"
-else
-  EDITOR="vim"
-fi
-
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 info()    { echo -e "${BLUE}[INFO]${NC}  $1"; }
 success() { echo -e "${GREEN}[OK]${NC}    $1"; }
@@ -67,12 +60,16 @@ TELEGRAM_BOT_TOKEN=
 WHATSAPP_ALLOW_FROM=
 EOF
     chmod 600 "$ENV_FILE"
-    echo -e "\n${YELLOW}  .env 已生成，请填写后重新运行：\n    $EDITOR $ENV_FILE${NC}\n"
+    echo -e "\n${YELLOW}  .env 已生成，请填写后重新运行：\n    vim $ENV_FILE${NC}\n"
     exit 1
   fi
 
   info "校验 .env..."
+  _OPENCLAW_DIR_BEFORE="$OPENCLAW_DIR"
   eval "$(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$' | sed 's/^/export /')"
+  # .env 里 OPENCLAW_DIR= 为空时恢复默认值
+  [ -z "$OPENCLAW_DIR" ] && OPENCLAW_DIR="$_OPENCLAW_DIR_BEFORE"
+  ENV_FILE="$OPENCLAW_DIR/.env"
 
   MISSING=()
   for v in LLM_BASE_URL LLM_API_KEY LLM_PROVIDER_ID LLM_MODEL_ID GATEWAY_TOKEN FEISHU_APP_ID FEISHU_APP_SECRET; do
