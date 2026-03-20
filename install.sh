@@ -37,7 +37,8 @@ LLM_PROVIDER_ID=myprovider
 LLM_MODEL_ID=my-model-name
 
 # Gateway Token（必填）生成方法: openssl rand -hex 24
-GATEWAY_TOKEN=
+# 变量名必须是 OPENCLAW_GATEWAY_TOKEN，gateway 启动时自动读取
+OPENCLAW_GATEWAY_TOKEN=
 
 # Browser（可选，留空则自动探测）
 BROWSER_PATH=
@@ -72,13 +73,14 @@ EOF
   ENV_FILE="$OPENCLAW_DIR/.env"
 
   MISSING=()
-  for v in LLM_BASE_URL LLM_API_KEY LLM_PROVIDER_ID LLM_MODEL_ID GATEWAY_TOKEN FEISHU_APP_ID FEISHU_APP_SECRET; do
+  for v in LLM_BASE_URL LLM_API_KEY LLM_PROVIDER_ID LLM_MODEL_ID GATEWAY_TOKEN; do
     [ -z "${!v}" ] && MISSING+=("$v")
   done
   [ ${#MISSING[@]} -gt 0 ] && error "必填字段未填写：$(IFS=', '; echo "${MISSING[*]}")\n请编辑 $ENV_FILE 后重新运行。"
 
   [ -z "$BROWSER_PATH" ]         && warn "BROWSER_PATH 未填，将自动探测"
   [ -z "$BRAVE_SEARCH_API_KEY" ] && warn "BRAVE_SEARCH_API_KEY 未填，Brave Search 将被禁用"
+  [ -z "$FEISHU_APP_ID" ]        && warn "FEISHU_APP_ID 未填，feishu 节点将被移除"
   [ -z "$SLACK_APP_TOKEN" ]      && warn "SLACK_APP_TOKEN 未填，slack 节点将被移除"
   [ -z "$TELEGRAM_BOT_TOKEN" ]   && warn "TELEGRAM_BOT_TOKEN 未填，telegram 节点将被移除"
   [ -z "$WHATSAPP_ALLOW_FROM" ]  && warn "WHATSAPP_ALLOW_FROM 未填，whatsapp 节点将被移除"
@@ -111,9 +113,9 @@ deploy_config() {
 
   python3 - "$DST" "$OPENCLAW_DIR" "$LLM_PROVIDER_ID" "$LLM_MODEL_ID" \
     "$BRAVE_SEARCH_API_KEY" "$BROWSER_PATH" \
-    "$SLACK_APP_TOKEN" "$TELEGRAM_BOT_TOKEN" "$WHATSAPP_ALLOW_FROM" <<'PYEOF'
+    "$FEISHU_APP_ID" "$SLACK_APP_TOKEN" "$TELEGRAM_BOT_TOKEN" "$WHATSAPP_ALLOW_FROM" <<'PYEOF'
 import json, sys
-dst, odir, pid, mid, brave, browser, slack, telegram, whatsapp = sys.argv[1:]
+dst, odir, pid, mid, brave, browser, feishu, slack, telegram, whatsapp = sys.argv[1:]
 full = pid + '/' + mid
 
 with open(dst) as f: c = f.read()
@@ -145,9 +147,15 @@ if '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}' in am:
 
 # 可选 channel 节点删除
 ch = c.setdefault('channels', {})
+if not feishu:   ch.pop('feishu',   None)
 if not slack:    ch.pop('slack',    None)
 if not telegram: ch.pop('telegram', None)
 if not whatsapp: ch.pop('whatsapp', None)
+
+# feishu plugin 同步
+if not feishu:
+    try: c['plugins']['entries'].pop('feishu', None)
+    except KeyError: pass
 
 # Brave / Browser
 if not brave:
@@ -197,11 +205,11 @@ setup_agents() {
     mkdir -p "$WS"
     case "$AGENT_ID" in
       observer)
-        echo "你是资讯侦察员，每次 heartbeat 用 browser subagent 搜集过去数小时最新 AI 资讯（arxiv、HuggingFace、主流科技博客），将原始结果写入 ~/.openclaw/workspace-analyst/inbox/news-{date}-{hour}.md。" > "$WS/SOUL.md"
+        echo "你是 AI 资讯侦察员，每次 heartbeat 用 browser subagent 搜集过去数小时最新 AI 资讯（arxiv、HuggingFace、主流科技博客），将原始结果写入 ~/.openclaw/workspace-analyst/inbox/news-{date}-{hour}.md。" > "$WS/SOUL.md"
         echo "用 browser subagent 搜索过去数小时最新 AI 资讯，将结果写入 ~/.openclaw/workspace-analyst/inbox/news-{date}-{hour}.md，写完回复 HEARTBEAT_OK。" > "$WS/HEARTBEAT.md"
         ;;
       analyst)
-        echo "你是资讯分析师，每次 heartbeat 检查 inbox/ 目录，对 observer 投递的资讯文件逐一用 subagent 进行分析点评，将结果写入 memory/analysis-{date}.md 并通过飞书发送摘要。" > "$WS/SOUL.md"
+        echo "你是 AI 资讯分析师，每次 heartbeat 检查 inbox/ 目录，对 observer 投递的资讯文件逐一用 subagent 进行分析点评，将结果写入 memory/analysis-{date}.md 并通过飞书发送摘要。" > "$WS/SOUL.md"
         echo "检查 inbox/ 目录，有未处理文件则用 subagent 分析点评并写入 memory/analysis-{date}.md，通过飞书发送摘要；无文件则回复 HEARTBEAT_OK。" > "$WS/HEARTBEAT.md"
         ;;
     esac
