@@ -4,7 +4,6 @@
     "providers": {
       "${LLM_PROVIDER_ID}": {
         "baseUrl": "${LLM_BASE_URL}",
-        "apiKey": "${LLM_API_KEY}",
         "auth": "api-key",
         "api": "openai-completions",
         "models": [
