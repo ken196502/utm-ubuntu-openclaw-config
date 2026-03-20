@@ -238,15 +238,51 @@ setup_agents() {
     mkdir -p "$WS"
     case "$AGENT_ID" in
       observer)
-        echo "你是 AI 资讯侦察员，每次 heartbeat 用 browser subagent 搜集过去数小时最新 AI 资讯（arxiv、HuggingFace、主流科技博客），将原始结果写入 ~/.openclaw/workspace-analyst/inbox/news-{date}-{hour}.md。" > "$WS/SOUL.md"
-        echo "用 browser subagent 搜索过去数小时最新 AI 资讯，将结果写入 ~/.openclaw/workspace-analyst/inbox/news-{date}-{hour}.md，写完回复 HEARTBEAT_OK。" > "$WS/HEARTBEAT.md"
+        cat > "$WS/SOUL.md" <<'EOF'
+你是资讯侦察员，负责定期搜集各领域最新动态与研究进展（科技、学术、产业、社会等，不限于特定领域）。
+
+**工作方式：**
+- 使用 browser subagent 浏览 arxiv、HuggingFace、主流科技博客、新闻聚合、X/Twitter、Reddit 等来源，获取最新资讯链接
+- 对找到的资讯链接，使用 deepreader skill 抓取完整正文内容（支持网页、Twitter/X 推文与线程、Reddit 帖子与评论、YouTube 字幕），结果自动保存为 Markdown
+- 将抓取到的内容整理后写入 ~/.openclaw/workspace-analyst/inbox/news-{date}-{hour}.md，供 analyst 分析
+
+**deepreader 使用方式：**
+- 把需要抓取的 URL 直接传给 deepreader，它会自动识别来源（网页/X/Reddit/YouTube）并提取干净的正文
+- 无需 API key，无需登录，直接使用
+- 支持一次传入多个 URL 批量处理
+EOF
+        cat > "$WS/HEARTBEAT.md" <<'EOF'
+用 browser subagent 搜索过去数小时各领域最新资讯（不限主题），收集值得关注的链接后，用 deepreader skill 逐一抓取完整正文内容，将结果写入 ~/.openclaw/workspace-analyst/inbox/news-{date}-{hour}.md，写完回复 HEARTBEAT_OK。
+EOF
         ;;
       analyst)
-        echo "你是 AI 资讯分析师，每次 heartbeat 检查 inbox/ 目录，对 observer 投递的资讯文件逐一用 subagent 进行分析点评，将结果写入 memory/analysis-{date}.md 并通过飞书发送摘要。" > "$WS/SOUL.md"
-        echo "检查 inbox/ 目录，有未处理文件则用 subagent 分析点评并写入 memory/analysis-{date}.md，通过飞书发送摘要；无文件则回复 HEARTBEAT_OK。" > "$WS/HEARTBEAT.md"
+        cat > "$WS/SOUL.md" <<'EOF'
+你是资讯分析师，负责对侦察员（observer）投递的各类资讯进行深度分析与点评，不局限于特定领域。
+
+**工作方式：**
+- 每次 heartbeat 检查 inbox/ 目录，对未处理文件逐一用 subagent 进行分析
+- 提炼核心观点、趋势判断、潜在影响
+- 将分析结果写入 memory/analysis-{date}.md
+- 通过飞书发送摘要推送
+EOF
+        cat > "$WS/HEARTBEAT.md" <<'EOF'
+检查 inbox/ 目录，有未处理文件则用 subagent 分析点评并写入 memory/analysis-{date}.md，通过飞书发送摘要；无文件则回复 HEARTBEAT_OK。
+EOF
         ;;
     esac
     success "  $AGENT_ID SOUL.md / HEARTBEAT.md 已写入"
+
+    # ── 为 observer 安装 deepreader skill ──────────────
+    if [ "$AGENT_ID" = "observer" ]; then
+      if command -v npx &>/dev/null; then
+        info "为 observer 安装 deepreader skill..."
+        (cd "$WS" && npx clawhub@latest install deepreader --force) \
+          && success "deepreader skill 已安装到 $WS/skills/" \
+          || warn "deepreader skill 安装失败，可手动执行：cd $WS && npx clawhub@latest install deepreader --force"
+      else
+        warn "npx 未找到，跳过 deepreader 安装，可手动执行：cd $WS && npx clawhub@latest install deepreader --force"
+      fi
+    fi
   done
 }
 
