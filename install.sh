@@ -111,11 +111,11 @@ deploy_config() {
   info "下载 openclaw.json..."
   curl -fsSL "${GITHUB_RAW}/openclaw.json" -o "$DST" || error "下载失败"
 
-  python3 - "$DST" "$OPENCLAW_DIR" "$LLM_PROVIDER_ID" "$LLM_MODEL_ID" "$LLM_API_KEY" \
+  python3 - "$DST" "$OPENCLAW_DIR" "$LLM_PROVIDER_ID" "$LLM_MODEL_ID" \
     "$BRAVE_SEARCH_API_KEY" "$BROWSER_PATH" \
     "$FEISHU_APP_ID" "$SLACK_APP_TOKEN" "$TELEGRAM_BOT_TOKEN" "$WHATSAPP_ALLOW_FROM" <<'PYEOF'
 import json, sys
-dst, odir, pid, mid, api_key, brave, browser, feishu, slack, telegram, whatsapp = sys.argv[1:]
+dst, odir, pid, mid, brave, browser, feishu, slack, telegram, whatsapp = sys.argv[1:]
 full = pid + '/' + mid
 
 with open(dst) as f: c = f.read()
@@ -133,8 +133,6 @@ c = json.loads(c)
 providers = c.setdefault('models', {}).setdefault('providers', {})
 if '${LLM_PROVIDER_ID}' in providers:
     providers[pid] = providers.pop('${LLM_PROVIDER_ID}')
-if pid in providers:
-    providers[pid]['apiKey'] = api_key
 for m in providers.get(pid, {}).get('models', []):
     if m.get('id')   == '${LLM_MODEL_ID}': m['id']   = mid
     if m.get('name') == '${LLM_MODEL_ID}': m['name'] = mid
@@ -174,7 +172,40 @@ PYEOF
   success "openclaw.json 已写入"
 }
 
-# ── 4. 部署 workspace md ────────────────────────────────
+# ── 4. 生成 auth-profiles.json ─────────────────────────
+deploy_auth() {
+  AUTH_DIR="$OPENCLAW_DIR/agents/main/agent"
+  AUTH_FILE="$AUTH_DIR/auth-profiles.json"
+  mkdir -p "$AUTH_DIR"
+
+  # 已存在则跳过（避免覆盖用户手动配置的 profiles）
+  if [ -f "$AUTH_FILE" ]; then
+    success "auth-profiles.json 已存在，跳过"
+    return
+  fi
+
+  info "生成 auth-profiles.json..."
+  python3 -c "
+import json, sys
+pid, key = sys.argv[1], sys.argv[2]
+profile_id = pid + ':default'
+data = {
+  'profiles': {
+    profile_id: {
+      'provider': pid,
+      'type': 'api_key',
+      'key': key
+    }
+  },
+  'order': { pid: [profile_id] }
+}
+with open('$AUTH_FILE', 'w') as f: json.dump(data, f, indent=2)
+" "$LLM_PROVIDER_ID" "$LLM_API_KEY"
+  chmod 600 "$AUTH_FILE"
+  success "auth-profiles.json 已生成"
+}
+
+# ── 5. 部署 workspace md ────────────────────────────────
 deploy_workspace() {
   DST_WS="$OPENCLAW_DIR/workspace"
   mkdir -p "$DST_WS"
@@ -190,7 +221,7 @@ deploy_workspace() {
   done
 }
 
-# ── 5. 添加 agents（已存在则跳过）─────────────────────────
+# ── 6. 添加 agents（已存在则跳过）─────────────────────────
 setup_agents() {
   command -v openclaw &>/dev/null || { warn "openclaw 未找到，跳过 agents 配置"; return; }
 
@@ -219,7 +250,7 @@ setup_agents() {
   done
 }
 
-# ── 6. 重启 gateway 并验证 ──────────────────────────────
+# ── 7. 重启 gateway 并验证 ──────────────────────────────
 verify() {
   command -v openclaw &>/dev/null || { warn "openclaw 未找到，请重新加载 shell"; return; }
   info "运行 doctor --fix..."
@@ -241,6 +272,7 @@ echo -e "\n${BLUE}╔═══════════════════�
 load_env
 install_openclaw
 deploy_config
+deploy_auth
 deploy_workspace
 setup_agents
 verify
