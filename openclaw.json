@@ -85,20 +85,6 @@
     "list": [
       {
         "id": "main"
-      },
-      {
-        "id": "observer",
-        "name": "observer",
-        "workspace": "/Users/franklin/.openclaw/workspace-observer",
-        "agentDir": "/Users/franklin/.openclaw/agents/observer",
-        "model": "franklin755/stepfun-ai/step-3.5-flash"
-      },
-      {
-        "id": "analyst",
-        "name": "analyst",
-        "workspace": "/Users/franklin/.openclaw/workspace-analyst",
-        "agentDir": "/Users/franklin/.openclaw/agents/analyst",
-        "model": "franklin755/stepfun-ai/step-3.5-flash"
       }
     ]
   },
