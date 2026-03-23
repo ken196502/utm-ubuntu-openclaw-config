@@ -1,47 +1,15 @@
 {
-  "meta": {
-    "lastTouchedVersion": "2026.3.13",
-    "lastTouchedAt": "2026-03-21T15:31:25.663Z"
-  },
-  "browser": {
-    "enabled": true,
-    "executablePath": "${BROWSER_PATH}",
-    "defaultProfile": "openclaw"
-  },
-  "acp": {
-    "enabled": true,
-    "dispatch": {
-      "enabled": true
-    },
-    "backend": "acpx",
-    "defaultAgent": "opencode",
-    "allowedAgents": [
-      "pi",
-      "claude",
-      "codex",
-      "opencode",
-      "gemini"
-    ],
-    "maxConcurrentSessions": 8,
-    "stream": {
-      "coalesceIdleMs": 300,
-      "maxChunkChars": 1200
-    },
-    "runtime": {
-      "ttlMinutes": 120
-    }
-  },
   "models": {
     "mode": "merge",
     "providers": {
-      "franklin755": {
+      "${LLM_PROVIDER_ID}": {
         "baseUrl": "${LLM_BASE_URL}",
         "auth": "api-key",
         "api": "openai-completions",
         "models": [
           {
-            "id": "stepfun-ai/step-3.5-flash",
-            "name": "stepfun-ai/step-3.5-flash",
+            "id": "${LLM_MODEL_ID}",
+            "name": "${LLM_MODEL_ID}",
             "api": "openai-completions",
             "reasoning": false,
             "input": [
@@ -63,13 +31,13 @@
   "agents": {
     "defaults": {
       "model": {
-        "primary": "franklin755/stepfun-ai/step-3.5-flash",
+        "primary": "${LLM_PROVIDER_ID}/${LLM_MODEL_ID}",
         "fallbacks": []
       },
       "models": {
-        "franklin755/stepfun-ai/step-3.5-flash": {}
+        "${LLM_PROVIDER_ID}/${LLM_MODEL_ID}": {}
       },
-      "workspace": "/Users/franklin/.openclaw/workspace",
+      "workspace": "~/.openclaw/workspace",
       "compaction": {
         "mode": "safeguard"
       },
@@ -80,19 +48,15 @@
       },
       "sandbox": {
         "mode": "off"
+      },
+      "heartbeat": {
+        "every": "30m",
+        "target": "last"
       }
-    },
-    "list": [
-      {
-        "id": "main"
-      }
-    ]
+    }
   },
   "tools": {
     "profile": "full",
-    "allow": [
-      "*"
-    ],
     "web": {
       "search": {
         "enabled": true,
@@ -102,6 +66,9 @@
         "timeoutSeconds": 30
       }
     },
+    "allow": [
+      "*"
+    ],
     "sessions": {
       "visibility": "all"
     }
@@ -132,12 +99,17 @@
     }
   },
   "channels": {
+    "slack": {
+      "enabled": true,
+      "mode": "socket",
+      "appToken": "${SLACK_APP_TOKEN}",
+      "botToken": "${SLACK_BOT_TOKEN}"
+    },
     "whatsapp": {
       "enabled": true,
       "dmPolicy": "allowlist",
       "allowFrom": [
-        "+8613631687200",
-        "+85260645065"
+        "${WHATSAPP_ALLOW_FROM}"
       ],
       "groupPolicy": "open",
       "debounceMs": 0,
@@ -149,17 +121,6 @@
       "botToken": "${TELEGRAM_BOT_TOKEN}",
       "groupPolicy": "open",
       "streaming": "partial"
-    },
-    "slack": {
-      "mode": "socket",
-      "webhookPath": "/slack/events",
-      "enabled": true,
-      "botToken": "${SLACK_BOT_TOKEN}",
-      "appToken": "${SLACK_APP_TOKEN}",
-      "userTokenReadOnly": true,
-      "groupPolicy": "allowlist",
-      "streaming": "partial",
-      "nativeStreaming": true
     },
     "feishu": {
       "enabled": true,
@@ -185,6 +146,11 @@
       "stream": false
     }
   },
+  "browser": {
+    "enabled": true,
+    "executablePath": "${BROWSER_PATH}",
+    "defaultProfile": "openclaw"
+  },
   "gateway": {
     "port": 18789,
     "mode": "local",
@@ -206,6 +172,29 @@
         "contacts.add",
         "reminders.add"
       ]
+    }
+  },
+  "acp": {
+    "enabled": true,
+    "dispatch": {
+      "enabled": true
+    },
+    "backend": "acpx",
+    "defaultAgent": "opencode",
+    "allowedAgents": [
+      "pi",
+      "claude",
+      "codex",
+      "opencode",
+      "gemini"
+    ],
+    "maxConcurrentSessions": 8,
+    "stream": {
+      "coalesceIdleMs": 300,
+      "maxChunkChars": 1200
+    },
+    "runtime": {
+      "ttlMinutes": 120
     }
   },
   "skills": {
