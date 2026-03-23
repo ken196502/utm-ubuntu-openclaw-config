@@ -1,4 +1,32 @@
 {
+  "browser": {
+    "enabled": true,
+    "executablePath": "${BROWSER_PATH}",
+    "defaultProfile": "openclaw"
+  },
+  "acp": {
+    "enabled": true,
+    "dispatch": {
+      "enabled": true
+    },
+    "backend": "acpx",
+    "defaultAgent": "opencode",
+    "allowedAgents": [
+      "pi",
+      "claude",
+      "codex",
+      "opencode",
+      "gemini"
+    ],
+    "maxConcurrentSessions": 8,
+    "stream": {
+      "coalesceIdleMs": 300,
+      "maxChunkChars": 1200
+    },
+    "runtime": {
+      "ttlMinutes": 120
+    }
+  },
   "models": {
     "mode": "merge",
     "providers": {
@@ -42,33 +70,32 @@
         "mode": "safeguard"
       },
       "blockStreamingDefault": "off",
+      "heartbeat": {
+        "every": "30m",
+        "target": "last"
+      },
       "maxConcurrent": 4,
       "subagents": {
         "maxConcurrent": 8
       },
       "sandbox": {
         "mode": "off"
-      },
-      "heartbeat": {
-        "every": "30m",
-        "target": "last"
       }
     }
   },
   "tools": {
     "profile": "full",
+    "allow": [
+      "*"
+    ],
     "web": {
       "search": {
         "enabled": true,
         "provider": "brave",
-        "apiKey": "${BRAVE_SEARCH_API_KEY}",
         "maxResults": 5,
         "timeoutSeconds": 30
       }
     },
-    "allow": [
-      "*"
-    ],
     "sessions": {
       "visibility": "all"
     }
@@ -99,12 +126,6 @@
     }
   },
   "channels": {
-    "slack": {
-      "enabled": true,
-      "mode": "socket",
-      "appToken": "${SLACK_APP_TOKEN}",
-      "botToken": "${SLACK_BOT_TOKEN}"
-    },
     "whatsapp": {
       "enabled": true,
       "dmPolicy": "allowlist",
@@ -120,6 +141,17 @@
       "dmPolicy": "pairing",
       "botToken": "${TELEGRAM_BOT_TOKEN}",
       "groupPolicy": "open",
+      "streaming": "partial"
+    },
+    "slack": {
+      "mode": "socket",
+      "webhookPath": "/slack/events",
+      "enabled": true,
+      "botToken": "${SLACK_BOT_TOKEN}",
+      "appToken": "${SLACK_APP_TOKEN}",
+      "userTokenReadOnly": true,
+      "groupPolicy": "allowlist",
+      "nativeStreaming": true,
       "streaming": "partial"
     },
     "feishu": {
@@ -146,11 +178,6 @@
       "stream": false
     }
   },
-  "browser": {
-    "enabled": true,
-    "executablePath": "${BROWSER_PATH}",
-    "defaultProfile": "openclaw"
-  },
   "gateway": {
     "port": 18789,
     "mode": "local",
@@ -174,46 +201,13 @@
       ]
     }
   },
-  "acp": {
-    "enabled": true,
-    "dispatch": {
-      "enabled": true
-    },
-    "backend": "acpx",
-    "defaultAgent": "opencode",
-    "allowedAgents": [
-      "pi",
-      "claude",
-      "codex",
-      "opencode",
-      "gemini"
-    ],
-    "maxConcurrentSessions": 8,
-    "stream": {
-      "coalesceIdleMs": 300,
-      "maxChunkChars": 1200
-    },
-    "runtime": {
-      "ttlMinutes": 120
-    }
-  },
   "skills": {
     "install": {
       "nodeManager": "pnpm"
     }
   },
-  "plugins": {
-    "entries": {
-      "feishu": {
-        "enabled": true
-      },
-      "acpx": {
-        "enabled": true,
-        "config": {
-          "permissionMode": "approve-all",
-          "nonInteractivePermissions": "deny"
-        }
-      }
-    }
+  "meta": {
+    "lastTouchedVersion": "2026.3.22",
+    "lastTouchedAt": "2026-03-23T15:07:12.135Z"
   }
 }
