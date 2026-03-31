@@ -132,15 +132,27 @@
     },
     "feishu": {
       "enabled": true,
-      "dmPolicy": "pairing",
       "accounts": {
         "main": {
           "appId": "${FEISHU_APP_ID}",
-          "appSecret": "${FEISHU_APP_SECRET}",
-          "botName": "FeishuAI"
+          "appSecret": "${FEISHU_APP_SECRET}"
+        },
+        "default": {
+          "dmPolicy": "pairing",
+          "groupPolicy": "open",
+          "webhookPath": "/feishu/events"
         }
-      }
+      },
+      "domain": "feishu",
+      "connectionMode": "websocket",
+      "webhookPath": "/feishu/events",
+      "dmPolicy": "pairing",
+      "groupPolicy": "allowlist",
+      "reactionNotifications": "own",
+      "typingIndicator": true,
+      "resolveSenderNames": true
     }
+  }
   },
   "browser": {
     "enabled": true,
