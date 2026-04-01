@@ -52,14 +52,6 @@
       "heartbeat": {
         "every": "30m",
         "target": "last"
-      },
-      "memorySearch": {
-        "provider": "openai",
-        "model": "nvidia/nv-embed-v1",
-        "remote": {
-          "baseUrl": "${LLM_BASE_URL}",
-          "apiKey": "${LLM_API_KEY}"
-        }
       }
     }
   },
