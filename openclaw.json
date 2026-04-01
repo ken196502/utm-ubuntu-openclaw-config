@@ -144,7 +144,6 @@
       "typingIndicator": true,
       "resolveSenderNames": true
     }
-  }
   },
   "browser": {
     "enabled": true,
