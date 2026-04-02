@@ -248,7 +248,14 @@ for old, new in [('~/.openclaw/workspace-observer', odir+'/workspace-observer'),
     c = c.replace(old, new)
 c = json.loads(c)
 
-# ── SecretRef scrub: 只改 models.providers 下各 provider 的 apiKey ─────────────
+# ── Step 1: 先 rename placeholder key，再 scrub apiKey ───────────────────────────
+provs = c.setdefault('models', {}).setdefault('providers', {})
+
+# 1a. rename: ${LLM_PROVIDER_ID} → 实际 pid
+if '${LLM_PROVIDER_ID}' in provs:
+    provs[pid] = provs.pop('${LLM_PROVIDER_ID}')
+
+# 1b. scrub: rename 完成后再替换 apiKey → keyRef/env，确保 pid key 已存在
 def scrub_provider(obj):
     """把单个 provider 对象（或其 models 列表项）里的 apiKey 换成 keyRef/env。"""
     if not isinstance(obj, dict):
@@ -261,20 +268,22 @@ def scrub_provider(obj):
             m.pop('apiKey')
             m['keyRef'] = {'source': 'env', 'id': 'LLM_API_KEY'}
 
-for provider_obj in c.get('models', {}).get('providers', {}).values():
+for provider_obj in provs.values():
     scrub_provider(provider_obj)
-# ────────────────────────────────────────────────────────────────────────────────
 
-provs = c.setdefault('models',{}).setdefault('providers',{})
-if '${LLM_PROVIDER_ID}' in provs: provs[pid] = provs.pop('${LLM_PROVIDER_ID}')
-for m in provs.get(pid,{}).get('models',[]):
+# 1c. model id / name 替换
+for m in provs.get(pid, {}).get('models', []):
     if m.get('id')   == '${LLM_MODEL_ID}': m['id']   = mid
     if m.get('name') == '${LLM_MODEL_ID}': m['name'] = mid
-defs = c.setdefault('agents',{}).setdefault('defaults',{})
-if defs.get('model',{}).get('primary') == '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}':
+
+# 1d. agents.defaults 替换
+defs = c.setdefault('agents', {}).setdefault('defaults', {})
+if defs.get('model', {}).get('primary') == '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}':
     defs['model']['primary'] = full
-am = defs.get('models',{})
-if '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}' in am: am[full] = am.pop('${LLM_PROVIDER_ID}/${LLM_MODEL_ID}')
+am = defs.get('models', {})
+if '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}' in am:
+    am[full] = am.pop('${LLM_PROVIDER_ID}/${LLM_MODEL_ID}')
+# ────────────────────────────────────────────────────────────────────────────────
 
 # ── Channels 处理：逐个删除空 key，feishu 同步清理 plugins.entries ─────────────
 ch = c.setdefault('channels', {})
@@ -359,7 +368,7 @@ verify() {
 }
 
 echo -e "\n${B}╔══════════════════════════════════════╗
-║       OpenClaw 一键安装脚本          ║
+║     OpenClaw 一键安装脚本             ║
 ╚══════════════════════════════════════╝${N}\n"
 
 load_env
