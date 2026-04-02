@@ -91,7 +91,7 @@ write_agent_ws() {
   fi
 }
 
-# ─── 核心改动：写 auth-profiles.json（SecretRef + env，不写入明文 key）──────────
+# 写 auth-profiles.json（SecretRef + env，不写入明文 key）
 # OpenClaw 运行时会从环境变量 LLM_API_KEY 读取实际 key，磁盘文件不含明文。
 _write_auth() {
   local dst="$1"
@@ -228,7 +228,6 @@ run_onboard() {
 }
 
 # 4. 部署 openclaw.json
-# ─── 核心改动：scrub() 将明文 apiKey 改为 SecretRef + env ──────────────────────
 deploy_config() {
   local dst="$OPENCLAW_DIR/openclaw.json"
   mkdir -p "$OPENCLAW_DIR"
@@ -250,7 +249,6 @@ for old, new in [('~/.openclaw/workspace-observer', odir+'/workspace-observer'),
 c = json.loads(c)
 
 # ── SecretRef scrub: 只改 models.providers 下各 provider 的 apiKey ─────────────
-# 不做全局递归，避免误改 tools/channels 等其他节点里同名字段。
 def scrub_provider(obj):
     """把单个 provider 对象（或其 models 列表项）里的 apiKey 换成 keyRef/env。"""
     if not isinstance(obj, dict):
@@ -258,7 +256,6 @@ def scrub_provider(obj):
     if 'apiKey' in obj:
         obj.pop('apiKey')
         obj['keyRef'] = {'source': 'env', 'id': 'LLM_API_KEY'}
-    # provider 下可能还有嵌套的 models 列表，每项也做一次
     for m in obj.get('models', []):
         if isinstance(m, dict) and 'apiKey' in m:
             m.pop('apiKey')
@@ -278,14 +275,34 @@ if defs.get('model',{}).get('primary') == '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}':
     defs['model']['primary'] = full
 am = defs.get('models',{})
 if '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}' in am: am[full] = am.pop('${LLM_PROVIDER_ID}/${LLM_MODEL_ID}')
-ch = c.setdefault('channels',{})
-for key, val in [('feishu',feishu),('slack',slack),('telegram',tg),('whatsapp',wa)]:
-    if not val: ch.pop(key, None)
+
+# ── Channels 处理：逐个删除空 key，feishu 同步清理 plugins.entries ─────────────
+ch = c.setdefault('channels', {})
+
+# feishu 单独处理，同时清理 plugins.entries
+if not feishu:
+    ch.pop('feishu', None)
+    try:
+        c['plugins']['entries'].pop('feishu', None)
+    except KeyError:
+        pass
+else:
+    pass  # feishu 有值时保留
+
+# 其余 channels
+for key, val in [('slack', slack), ('telegram', tg), ('whatsapp', wa)]:
+    if not val:
+        ch.pop(key, None)
+
+# whatsapp allowFrom 仅在有值时设置
 if wa and 'whatsapp' in ch:
     ch['whatsapp']['allowFrom'] = [x.strip() for x in wa.split(',') if x.strip()]
-if not feishu:
-    try: c['plugins']['entries'].pop('feishu', None)
-    except KeyError: pass
+
+# 所有 channel 都删完时，移除整个 channels key，避免残留空对象
+if not ch:
+    c.pop('channels', None)
+# ────────────────────────────────────────────────────────────────────────────────
+
 if not brave:
     try: c['tools']['web']['search']['enabled'] = False
     except KeyError: pass
@@ -342,7 +359,7 @@ verify() {
 }
 
 echo -e "\n${B}╔══════════════════════════════════════╗
-║     OpenClaw 一键安装脚本             ║
+║       OpenClaw 一键安装脚本          ║
 ╚══════════════════════════════════════╝${N}\n"
 
 load_env
