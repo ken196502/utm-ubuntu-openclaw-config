@@ -11,7 +11,6 @@ GITHUB_RAW="https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-conf
 OPENCLAW_DIR="$HOME/.openclaw"
 INSTALL_DEEPREADER=false
 
-# 解析参数
 for arg in "$@"; do
   [ "$arg" = "--install-deepreader" ] && INSTALL_DEEPREADER=true
 done
@@ -28,8 +27,6 @@ ok()    { echo -e "${G}[OK]${N}    $1"; }
 warn()  { echo -e "${Y}[WARN]${N}  $1"; }
 die()   { echo -e "${R}[ERROR]${N} $1"; exit 1; }
 
-# 写文件：$1=路径，$2=内容字符串（空则写空文件）
-# 文件存在时询问是否覆盖，直接读 /dev/tty 避免管道干扰
 _wf() {
   local dst="$1" content="$2" _ow=""
   if [ -f "$dst" ]; then
@@ -39,7 +36,6 @@ _wf() {
   printf '%s' "$content" > "$dst" && ok "  $(basename "$dst")" || true
 }
 
-# 公共 md 内容
 _TOOLS_MD='### Browser
 - Default: openclaw (isolated)
 - Use profile="user" only when login/cookies needed'
@@ -51,14 +47,12 @@ _SOUL_MD='You are an Agent Manager. You dispatch tasks by executing CLI commands
 
 _HEARTBEAT_MD="report all agents activity with session tool"
 
-# 强制写文件（不询问，用于新增 agent）
 _wf_force() {
   local dst="$1" content="$2"
   mkdir -p "$(dirname "$dst")"
   printf '%s' "$content" > "$dst" && ok "  $(basename "$dst")" || true
 }
 
-# 写主 agent workspace
 write_main_ws() {
   local ws="$1"; mkdir -p "$ws"
   _wf "$ws/IDENTITY.md" "a helpful assistant"
@@ -70,7 +64,6 @@ write_main_ws() {
   _wf "$ws/HEARTBEAT.md" "$_HEARTBEAT_MD"
 }
 
-# 写 observer/analyst workspace
 write_agent_ws() {
   local ws="$1" id="$2"; mkdir -p "$ws"
   _wf_force "$ws/IDENTITY.md" "a helpful assistant"
@@ -91,11 +84,9 @@ write_agent_ws() {
   fi
 }
 
-# 写 auth-profiles.json（SecretRef + env，不写入明文 key）
-# OpenClaw 运行时会从环境变量 LLM_API_KEY 读取实际 key，磁盘文件不含明文。
 _write_auth() {
   local dst="$1"
-  rm -f "$dst"          # 强制清除旧文件（含 agents add 生成的明文版本）
+  rm -f "$dst"
   mkdir -p "$(dirname "$dst")"
   python3 -c "
 import json, sys
@@ -106,11 +97,7 @@ data = {
     profile_id: {
       'provider': pid,
       'type': 'api_key',
-      # SecretRef + env: key 在运行时从环境变量读取，不硬编码进文件
-      'keyRef': {
-        'source': 'env',
-        'id': 'LLM_API_KEY'
-      }
+      'keyRef': {'source': 'env', 'id': 'LLM_API_KEY'}
     }
   },
   'order': { pid: [profile_id] }
@@ -122,14 +109,11 @@ with open(dst, 'w') as f:
   ok "  auth-profiles.json 已生成（SecretRef/env，无明文 key）"
 }
 
-# 确保环境变量在 shell 启动时自动导出 LLM_API_KEY
-# 写入 ~/.profile / ~/.bashrc / ~/.zshrc（去重）
 _ensure_env_export() {
   local line="export LLM_API_KEY=\"${LLM_API_KEY}\""
   local rc_files=("$HOME/.profile")
   [ -f "$HOME/.bashrc" ] && rc_files+=("$HOME/.bashrc")
   [ -f "$HOME/.zshrc"  ] && rc_files+=("$HOME/.zshrc")
-
   for rc in "${rc_files[@]}"; do
     grep -qF "LLM_API_KEY" "$rc" 2>/dev/null && continue
     echo "" >> "$rc"
@@ -137,7 +121,6 @@ _ensure_env_export() {
     echo "$line" >> "$rc"
     ok "  已写入 $rc"
   done
-  # 当前 session 也立即生效
   export LLM_API_KEY
 }
 
@@ -170,7 +153,7 @@ load_env() {
   fi
 
   local _before="$OPENCLAW_DIR"
-  eval "$(grep -v '^\s*[#$]' "$ENV_FILE" | grep -v '^\s*$' | sed 's/^/export /')"
+  eval "$(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$' | sed 's/^/export /')"
   [ -z "$OPENCLAW_DIR" ] && OPENCLAW_DIR="$_before"
   ENV_FILE="$OPENCLAW_DIR/.env"
   [ -z "$LLM_COMPATIBILITY" ] && LLM_COMPATIBILITY="openai"
@@ -185,10 +168,8 @@ load_env() {
     [ -z "${!v}" ] && warn "$v 未填，相关功能将被禁用"
   done
 
-  # 确保 LLM_API_KEY 写入 shell rc，供 OpenClaw daemon 运行时读取
   info "配置 LLM_API_KEY 环境变量（SecretRef 依赖）..."
   _ensure_env_export
-
   ok ".env 校验完成"
 }
 
@@ -208,7 +189,7 @@ install_openclaw() {
   ok "OpenClaw $(openclaw --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1) 安装完成"
 }
 
-# 3. onboard（跳过 auth，之后由 _write_auth 写 SecretRef 版本）
+# 3. onboard
 run_onboard() {
   info "安装 gateway daemon..."
   command -v openclaw &>/dev/null || { warn "openclaw 未找到，跳过"; return; }
@@ -217,126 +198,21 @@ run_onboard() {
     --gateway-port 18789 --gateway-bind loopback \
     --install-daemon --daemon-runtime node --skip-skills --accept-risk \
     || die "onboard 失败"
-
-  # onboard 可能生成含明文 key 的 auth-profiles.json，覆盖成 SecretRef 版本
   local auth_main="$OPENCLAW_DIR/agents/main/agent/auth-profiles.json"
   info "覆写 main agent auth-profiles.json 为 SecretRef 版本..."
-  rm -f "$auth_main"          # 强制重建
+  rm -f "$auth_main"
   _write_auth "$auth_main"
-
   ok "onboard 完成"
 }
 
-# 4. 部署 openclaw.json
-deploy_config() {
-  local dst="$OPENCLAW_DIR/openclaw.json"
-  mkdir -p "$OPENCLAW_DIR"
-  [ -f "$dst" ] && cp "$dst" "$dst.bak.$(date +%Y%m%d_%H%M%S)" && warn "已备份旧配置"
-  info "下载 openclaw.json..."
-  curl -fsSL "${GITHUB_RAW}/openclaw.json" -o "$dst" || die "下载失败"
-  python3 - "$dst" "$OPENCLAW_DIR" "$LLM_PROVIDER_ID" "$LLM_MODEL_ID" \
-    "$BRAVE_SEARCH_API_KEY" "$BROWSER_PATH" \
-    "$FEISHU_APP_ID" "$SLACK_APP_TOKEN" "$TELEGRAM_BOT_TOKEN" "$WHATSAPP_ALLOW_FROM" <<'PY'
-import json, sys
-dst, odir, pid, mid, brave, browser, feishu, slack, tg, wa = sys.argv[1:]
-full = pid + '/' + mid
-with open(dst) as f: c = f.read()
-for old, new in [('~/.openclaw/workspace-observer', odir+'/workspace-observer'),
-                 ('~/.openclaw/workspace-analyst',  odir+'/workspace-analyst'),
-                 ('~/.openclaw/workspace',          odir+'/workspace'),
-                 ('~/.openclaw',                    odir)]:
-    c = c.replace(old, new)
-c = json.loads(c)
-
-# ── Step 1: 先 rename placeholder key，再 scrub apiKey ───────────────────────────
-provs = c.setdefault('models', {}).setdefault('providers', {})
-
-# 1a. rename: ${LLM_PROVIDER_ID} → 实际 pid
-if '${LLM_PROVIDER_ID}' in provs:
-    provs[pid] = provs.pop('${LLM_PROVIDER_ID}')
-
-# 1b. scrub: rename 完成后再替换 apiKey → keyRef/env，确保 pid key 已存在
-def scrub_provider(obj):
-    """把单个 provider 对象（或其 models 列表项）里的 apiKey 换成 keyRef/env。"""
-    if not isinstance(obj, dict):
-        return
-    if 'apiKey' in obj:
-        obj.pop('apiKey')
-        obj['keyRef'] = {'source': 'env', 'id': 'LLM_API_KEY'}
-    for m in obj.get('models', []):
-        if isinstance(m, dict) and 'apiKey' in m:
-            m.pop('apiKey')
-            m['keyRef'] = {'source': 'env', 'id': 'LLM_API_KEY'}
-
-for provider_obj in provs.values():
-    scrub_provider(provider_obj)
-
-# 1c. model id / name 替换
-for m in provs.get(pid, {}).get('models', []):
-    if m.get('id')   == '${LLM_MODEL_ID}': m['id']   = mid
-    if m.get('name') == '${LLM_MODEL_ID}': m['name'] = mid
-
-# 1d. agents.defaults 替换
-defs = c.setdefault('agents', {}).setdefault('defaults', {})
-if defs.get('model', {}).get('primary') == '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}':
-    defs['model']['primary'] = full
-am = defs.get('models', {})
-if '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}' in am:
-    am[full] = am.pop('${LLM_PROVIDER_ID}/${LLM_MODEL_ID}')
-# ────────────────────────────────────────────────────────────────────────────────
-
-# ── Channels 处理：逐个删除空 key，feishu 同步清理 plugins.entries ─────────────
-# 用 get 而非 setdefault，避免模板无 channels 时凭空创建空节点
-ch = c.get('channels', {})
-
-# feishu 单独处理，同时清理 plugins.entries
-if not feishu:
-    ch.pop('feishu', None)
-    try:
-        c['plugins']['entries'].pop('feishu', None)
-    except KeyError:
-        pass
-
-# 其余 channels
-for key, val in [('slack', slack), ('telegram', tg), ('whatsapp', wa)]:
-    if not val:
-        ch.pop(key, None)
-
-# whatsapp allowFrom 仅在有值时设置
-if wa and 'whatsapp' in ch:
-    ch['whatsapp']['allowFrom'] = [x.strip() for x in wa.split(',') if x.strip()]
-
-# 所有 channel 都删完（或本来就没有）时，移除整个 channels key
-if not ch:
-    c.pop('channels', None)
-# ────────────────────────────────────────────────────────────────────────────────
-
-if not brave:
-    # 删除整个 brave plugin 节点，避免 OpenClaw 扫到空 apiKey 报错
-    try:
-        c['plugins']['entries'].pop('brave', None)
-    except KeyError:
-        pass
-    try:
-        c['tools']['web']['search']['enabled'] = False
-    except KeyError:
-        pass
-if not browser:
-    try: c['browser'].pop('executablePath', None)
-    except KeyError: pass
-with open(dst, 'w') as f: json.dump(c, f, indent=2, ensure_ascii=False)
-PY
-  chmod 600 "$dst"; ok "openclaw.json 已写入（apiKey → SecretRef/env）"
-}
-
-# 5. 部署主 workspace md
+# 4. 部署主 workspace md
 deploy_workspace() {
   info "写入默认 workspace 文件..."
   write_main_ws "$OPENCLAW_DIR/workspace"
   ok "workspace 默认文件写入完成"
 }
 
-# 6. 添加 agents
+# 5. 添加 agents
 setup_agents() {
   command -v openclaw &>/dev/null || { warn "openclaw 未找到，跳过 agents 配置"; return; }
   for AGENT_ID in observer analyst; do
@@ -348,7 +224,6 @@ setup_agents() {
       --agent-dir "$OPENCLAW_DIR/agents/$AGENT_ID" --non-interactive \
       || { warn "agent $AGENT_ID 添加失败"; continue; }
     write_agent_ws "$ws" "$AGENT_ID"
-    # 每个 agent 都用 SecretRef 版本的 auth-profiles.json
     _write_auth "$OPENCLAW_DIR/agents/$AGENT_ID/agent/auth-profiles.json"
     if [ "$AGENT_ID" = "observer" ] && [ "$INSTALL_DEEPREADER" = "true" ]; then
       info "安装 deepreader-skill..."
@@ -361,7 +236,7 @@ setup_agents() {
   done
 }
 
-# 7. 重启 gateway
+# 6. 重启 gateway（先跑，避免覆盖 deploy_config）
 verify() {
   command -v openclaw &>/dev/null || { warn "openclaw 未找到，请重新加载 shell"; return; }
   info "运行 doctor --fix..."
@@ -373,17 +248,121 @@ verify() {
   ok "gateway 已重启"
 }
 
+# 7. 部署 openclaw.json（最后写入，防止被 doctor/gateway 还原）
+deploy_config() {
+  local dst="$OPENCLAW_DIR/openclaw.json"
+  mkdir -p "$OPENCLAW_DIR"
+  [ -f "$dst" ] && cp "$dst" "$dst.bak.$(date +%Y%m%d_%H%M%S)" && warn "已备份旧配置"
+  info "下载 openclaw.json..."
+  curl -fsSL "${GITHUB_RAW}/openclaw.json" -o "$dst" || die "下载失败"
+
+  python3 - "$dst" "$OPENCLAW_DIR" "$ENV_FILE" <<'PY'
+import json, sys
+
+dst, odir, env_file = sys.argv[1:]
+
+# 读 .env
+env = {}
+with open(env_file) as f:
+    for line in f:
+        line = line.strip()
+        if not line or line.startswith('#'): continue
+        if '=' in line:
+            k, _, v = line.partition('=')
+            env[k.strip()] = v.strip().strip('"').strip("'").strip()
+
+def e(k): return env.get(k, '')
+
+pid     = e('LLM_PROVIDER_ID')
+mid     = e('LLM_MODEL_ID')
+brave   = e('BRAVE_SEARCH_API_KEY')
+browser = e('BROWSER_PATH')
+feishu  = e('FEISHU_APP_ID')
+slack   = e('SLACK_APP_TOKEN')
+tg      = e('TELEGRAM_BOT_TOKEN')
+wa      = e('WHATSAPP_ALLOW_FROM')
+full    = pid + '/' + mid
+
+with open(dst) as f: c = f.read()
+for old, new in [('~/.openclaw/workspace-observer', odir+'/workspace-observer'),
+                 ('~/.openclaw/workspace-analyst',  odir+'/workspace-analyst'),
+                 ('~/.openclaw/workspace',          odir+'/workspace'),
+                 ('~/.openclaw',                    odir)]:
+    c = c.replace(old, new)
+c = json.loads(c)
+
+# provider rename → scrub apiKey → model id 替换
+provs = c.setdefault('models', {}).setdefault('providers', {})
+if '${LLM_PROVIDER_ID}' in provs:
+    provs[pid] = provs.pop('${LLM_PROVIDER_ID}')
+def scrub_provider(obj):
+    if not isinstance(obj, dict): return
+    if 'apiKey' in obj:
+        obj.pop('apiKey'); obj['keyRef'] = {'source': 'env', 'id': 'LLM_API_KEY'}
+    for m in obj.get('models', []):
+        if isinstance(m, dict) and 'apiKey' in m:
+            m.pop('apiKey'); m['keyRef'] = {'source': 'env', 'id': 'LLM_API_KEY'}
+for p in provs.values(): scrub_provider(p)
+for m in provs.get(pid, {}).get('models', []):
+    if m.get('id')   == '${LLM_MODEL_ID}': m['id']   = mid
+    if m.get('name') == '${LLM_MODEL_ID}': m['name'] = mid
+
+# memorySearch apiKey → keyRef
+try:
+    r = c['agents']['defaults']['memorySearch']['remote']
+    if 'apiKey' in r: r.pop('apiKey'); r['keyRef'] = {'source': 'env', 'id': 'LLM_API_KEY'}
+except KeyError: pass
+
+# agents defaults rename
+defs = c.setdefault('agents', {}).setdefault('defaults', {})
+if defs.get('model', {}).get('primary') == '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}':
+    defs['model']['primary'] = full
+am = defs.get('models', {})
+if '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}' in am:
+    am[full] = am.pop('${LLM_PROVIDER_ID}/${LLM_MODEL_ID}')
+
+# ── channels：没填就删，全删完则移除整个节点 ──
+ch = c.get('channels', {})
+if not feishu:  ch.pop('feishu',   None)
+if not slack:   ch.pop('slack',    None)
+if not tg:      ch.pop('telegram', None)
+if not wa:      ch.pop('whatsapp', None)
+if not ch:
+    c.pop('channels', None)
+
+# ── plugins.entries：没填就删 ──
+if not feishu:
+    try: c['plugins']['entries'].pop('feishu', None)
+    except KeyError: pass
+
+if not brave:
+    try: c['plugins']['entries'].pop('brave', None)
+    except KeyError: pass
+    try: c['tools']['web']['search']['enabled'] = False
+    except KeyError: pass
+
+# ── browser executablePath：没填就删 ──
+if not browser:
+    try: c['browser'].pop('executablePath', None)
+    except KeyError: pass
+
+with open(dst, 'w') as f: json.dump(c, f, indent=2, ensure_ascii=False)
+PY
+
+  chmod 600 "$dst"; ok "openclaw.json 已写入（apiKey → SecretRef/env，空值配置已清除）"
+}
+
 echo -e "\n${B}╔══════════════════════════════════════╗
 ║       OpenClaw 一键安装脚本          ║
 ╚══════════════════════════════════════╝${N}\n"
 
 load_env
+deploy_config
 install_openclaw
 run_onboard
-deploy_config
 deploy_workspace
 setup_agents
-verify
+verify          # doctor --fix 和 gateway install 先跑完
 
 echo -e "\n${G}✓ 安装完成！${N}
   配置:    $OPENCLAW_DIR/openclaw.json
