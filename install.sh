@@ -286,7 +286,8 @@ if '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}' in am:
 # ────────────────────────────────────────────────────────────────────────────────
 
 # ── Channels 处理：逐个删除空 key，feishu 同步清理 plugins.entries ─────────────
-ch = c.setdefault('channels', {})
+# 用 get 而非 setdefault，避免模板无 channels 时凭空创建空节点
+ch = c.get('channels', {})
 
 # feishu 单独处理，同时清理 plugins.entries
 if not feishu:
@@ -295,8 +296,6 @@ if not feishu:
         c['plugins']['entries'].pop('feishu', None)
     except KeyError:
         pass
-else:
-    pass  # feishu 有值时保留
 
 # 其余 channels
 for key, val in [('slack', slack), ('telegram', tg), ('whatsapp', wa)]:
@@ -307,14 +306,21 @@ for key, val in [('slack', slack), ('telegram', tg), ('whatsapp', wa)]:
 if wa and 'whatsapp' in ch:
     ch['whatsapp']['allowFrom'] = [x.strip() for x in wa.split(',') if x.strip()]
 
-# 所有 channel 都删完时，移除整个 channels key，避免残留空对象
+# 所有 channel 都删完（或本来就没有）时，移除整个 channels key
 if not ch:
     c.pop('channels', None)
 # ────────────────────────────────────────────────────────────────────────────────
 
 if not brave:
-    try: c['tools']['web']['search']['enabled'] = False
-    except KeyError: pass
+    # 删除整个 brave plugin 节点，避免 OpenClaw 扫到空 apiKey 报错
+    try:
+        c['plugins']['entries'].pop('brave', None)
+    except KeyError:
+        pass
+    try:
+        c['tools']['web']['search']['enabled'] = False
+    except KeyError:
+        pass
 if not browser:
     try: c['browser'].pop('executablePath', None)
     except KeyError: pass
@@ -368,7 +374,7 @@ verify() {
 }
 
 echo -e "\n${B}╔══════════════════════════════════════╗
-║     OpenClaw 一键安装脚本             ║
+║       OpenClaw 一键安装脚本          ║
 ╚══════════════════════════════════════╝${N}\n"
 
 load_env
