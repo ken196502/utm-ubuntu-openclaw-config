@@ -151,13 +151,11 @@
     "defaultProfile": "openclaw"
   },
   "gateway": {
-    "port": 18789,
-    "mode": "local",
-    "bind": "loopback",
+    "mode":"local",
     "auth": {
-      "mode": "token",
-      "token": "${OPENCLAW_GATEWAY_TOKEN}"
-    },
+       "mode": "none"
+    }
+  },
     "tailscale": {
       "mode": "off",
       "resetOnExit": false
