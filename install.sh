@@ -243,7 +243,7 @@ verify() {
   openclaw doctor --fix || warn "doctor 报告了问题"
   info "重启 gateway..."
   openclaw gateway stop 2>/dev/null || true; sleep 3
-  openclaw gateway install 2>/dev/null || true; sleep 15
+  openclaw gateway install --force 2>/dev/null || true; sleep 15
   openclaw gateway status || warn "gateway 状态异常"
   ok "gateway 已重启"
 }
