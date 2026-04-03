@@ -2,18 +2,12 @@
 set -e
 
 # 用法: curl -fsSL https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master/install.sh | bash
-# 可选参数: --install-deepreader  安装 deepreader-skill 到 observer agent
 #
 # 安全说明: auth-profiles.json 使用 SecretRef + env 方式，API Key 不写入磁盘，
 #           运行时由 OpenClaw 从环境变量 LLM_API_KEY 读取。
 
 GITHUB_RAW="https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master"
 OPENCLAW_DIR="$HOME/.openclaw"
-INSTALL_DEEPREADER=false
-
-for arg in "$@"; do
-  [ "$arg" = "--install-deepreader" ] && INSTALL_DEEPREADER=true
-done
 
 [ -f "$OPENCLAW_DIR/.env" ] && {
   _ov=$(grep -v '^\s*#' "$OPENCLAW_DIR/.env" | grep '^OPENCLAW_DIR=' | cut -d= -f2- | tr -d '"'"'")
@@ -128,6 +122,7 @@ load_env() {
       "LLM_PROVIDER_ID=myprovider"
       "LLM_MODEL_ID=my-model-name"
       "LLM_COMPATIBILITY=openai"
+      "OPENCLAW_GATEWAY_TOKEN="
       "# 可选"
       "BROWSER_PATH="
       "BRAVE_SEARCH_API_KEY="
@@ -150,7 +145,7 @@ load_env() {
   [ -z "$LLM_COMPATIBILITY" ] && LLM_COMPATIBILITY="openai"
 
   local miss=()
-  for v in LLM_BASE_URL LLM_API_KEY LLM_PROVIDER_ID LLM_MODEL_ID; do
+  for v in LLM_BASE_URL LLM_API_KEY LLM_PROVIDER_ID LLM_MODEL_ID OPENCLAW_GATEWAY_TOKEN; do
     [ -z "${!v}" ] && miss+=("$v")
   done
   [ ${#miss[@]} -gt 0 ] && die "必填字段未填写：${miss[*]}\n请编辑 $ENV_FILE"
@@ -206,17 +201,18 @@ deploy_workspace() {
 # 5. 添加 agents
 setup_agents() {
   command -v openclaw &>/dev/null || { warn "openclaw 未找到，跳过 agents 配置"; return; }
-  local AGENT_ID="analyst"
-  local ws="$OPENCLAW_DIR/agentTeam/workspace-$AGENT_ID"
-  openclaw agents list 2>/dev/null | grep -qi "\b$AGENT_ID\b" && { ok "agent $AGENT_ID 已存在，跳过"; return; }
-  info "添加 agent: $AGENT_ID ..."
-  openclaw agents add "$AGENT_ID" \
-    --workspace "$ws" --model "$LLM_PROVIDER_ID/$LLM_MODEL_ID" \
-    --agent-dir "$OPENCLAW_DIR/agents/$AGENT_ID" --non-interactive \
-    || { warn "agent $AGENT_ID 添加失败"; return; }
-  write_agent_ws "$ws" "$AGENT_ID"
-  _write_auth "$OPENCLAW_DIR/agents/$AGENT_ID/agent/auth-profiles.json"
-  ok "agent $AGENT_ID 配置完成"
+  for AGENT_ID in analyst; do
+    local ws="$OPENCLAW_DIR/agentTeam/workspace-$AGENT_ID"
+    openclaw agents list 2>/dev/null | grep -qi "\b$AGENT_ID\b" && { ok "agent $AGENT_ID 已存在，跳过"; continue; }
+    info "添加 agent: $AGENT_ID ..."
+    openclaw agents add "$AGENT_ID" \
+      --workspace "$ws" --model "$LLM_PROVIDER_ID/$LLM_MODEL_ID" \
+      --agent-dir "$OPENCLAW_DIR/agents/$AGENT_ID" --non-interactive \
+      || { warn "agent $AGENT_ID 添加失败"; continue; }
+    write_agent_ws "$ws" "$AGENT_ID"
+    _write_auth "$OPENCLAW_DIR/agents/$AGENT_ID/agent/auth-profiles.json"
+    ok "agent $AGENT_ID 配置完成"
+  done
 }
 
 # 6. 重启 gateway（先跑，避免覆盖 deploy_config）
@@ -225,11 +221,7 @@ verify() {
   info "运行 doctor --fix..."
   openclaw doctor --fix || warn "doctor 报告了问题"
   info "重启 gateway..."
-  openclaw gateway stop 2>/dev/null || true
-  if [[ "$(uname)" == "Darwin" ]]; then
-    launchctl unload ~/Library/LaunchAgents/ai.openclaw.gateway.plist 2>/dev/null || true
-  fi
-  sleep 3
+  openclaw gateway stop 2>/dev/null || true; sleep 3
   openclaw gateway install --force 2>/dev/null || true; sleep 15
   openclaw gateway status || warn "gateway 状态异常"
   ok "gateway 已重启"
