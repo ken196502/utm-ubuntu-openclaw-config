@@ -156,21 +156,6 @@
        "mode": "none"
     }
   },
-    "tailscale": {
-      "mode": "off",
-      "resetOnExit": false
-    },
-    "nodes": {
-      "denyCommands": [
-        "camera.snap",
-        "camera.clip",
-        "screen.record",
-        "calendar.add",
-        "contacts.add",
-        "reminders.add"
-      ]
-    }
-  },
   "acp": {
     "enabled": true,
     "dispatch": {
