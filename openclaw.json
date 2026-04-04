@@ -156,29 +156,6 @@
        "mode": "none"
     }
   },
-  "acp": {
-    "enabled": true,
-    "dispatch": {
-      "enabled": true
-    },
-    "backend": "acpx",
-    "defaultAgent": "opencode",
-    "allowedAgents": [
-      "pi",
-      "claude",
-      "codex",
-      "opencode",
-      "gemini"
-    ],
-    "maxConcurrentSessions": 8,
-    "stream": {
-      "coalesceIdleMs": 300,
-      "maxChunkChars": 1200
-    },
-    "runtime": {
-      "ttlMinutes": 120
-    }
-  },
   "skills": {
     "install": {
       "nodeManager": "pnpm"
@@ -190,7 +167,7 @@
         "enabled": true
       },
       "acpx": {
-        "enabled": true
+        "enabled": false
       }
     }
   }
