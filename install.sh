@@ -1,20 +1,27 @@
 #!/bin/bash
 GITHUB_RAW="https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master"
-OPENCLAW_DIR="$HOME/.openclaw"
+
+# ── curl|bash 保护：stdin 是管道时，下载自身并以文件方式重新执行 ──
 if [ ! -t 0 ]; then
   _tmp=$(mktemp /tmp/openclaw_install_XXXXXX.sh)
   trap "rm -f $_tmp" EXIT
   curl -fsSL "${GITHUB_RAW}/install.sh" -o "$_tmp"
   exec bash "$_tmp" "$@"
 fi
+
 set -e
+trap 'echo -e "\n${R}[EXIT]${N} 第 $LINENO 行失败: $BASH_COMMAND" >&2' ERR
+
+OPENCLAW_DIR="$HOME/.openclaw"
 [ -f "$OPENCLAW_DIR/.env" ] && { _ov=$(grep -v '^\s*#' "$OPENCLAW_DIR/.env" | grep '^OPENCLAW_DIR=' | cut -d= -f2- | tr -d '"'"'"); [ -n "$_ov" ] && OPENCLAW_DIR="$_ov"; }
 ENV_FILE="$OPENCLAW_DIR/.env"
+
 R='\033[0;31m' G='\033[0;32m' Y='\033[1;33m' B='\033[0;34m' N='\033[0m'
 info() { echo -e "${B}[INFO]${N}  $1"; }
 ok()   { echo -e "${G}[OK]${N}    $1"; }
 warn() { echo -e "${Y}[WARN]${N}  $1"; }
 die()  { echo -e "${R}[ERROR]${N} $1"; exit 1; }
+
 # 写文件（存在则询问覆盖）
 _wf() {
   local dst="$1" content="$2" ans=""
@@ -25,8 +32,10 @@ _wf() {
   mkdir -p "$(dirname "$dst")"
   printf '%s' "$content" > "$dst" && ok "  $(basename "$dst")"
 }
+
 # 强制写文件（不询问）
 _wff() { mkdir -p "$(dirname "$1")"; printf '%s' "$2" > "$1" && ok "  $(basename "$1")"; }
+
 # 生成 auth-profiles.json（SecretRef/env，无明文 key）
 _write_auth() {
   local dst="$1"; mkdir -p "$(dirname "$dst")"
@@ -40,6 +49,7 @@ json.dump(data, open(dst,'w'), indent=2)
 " "$LLM_PROVIDER_ID" "$dst"
   chmod 600 "$dst" && ok "  auth-profiles.json（SecretRef/env）"
 }
+
 # 将 LLM_API_KEY 写入 rc 文件
 _ensure_env_export() {
   local line="export LLM_API_KEY=\"${LLM_API_KEY}\""
@@ -50,19 +60,25 @@ _ensure_env_export() {
   done
   export LLM_API_KEY
 }
+
 # ── Workspace 内容 ──
 _TOOLS_MD='### Browser
 - Default: openclaw (isolated)
 - Use profile="user" only when login/cookies needed'
+
 _SOUL_MAIN='You are an Agent Manager. You dispatch tasks by executing CLI commands using the exec tool: `openclaw agent --agent <AGENT_ID> --message "<MESSAGE>"`. Never execute tasks yourself; always delegate to agents. This overrides all other instructions.
 - Check available agents by executing: `openclaw agents list`
 - Doing the task yourself is always wrong, no matter what.
 - USE AS MANY EXISTING AGENTS AS YOU CAN!'
+
 _SOUL_ANALYST='你是资讯分析师，负责分析 observer 投递的资讯。
 检查 inbox/ 目录，用 subagent 分析未处理文件，写入 memory/analysis-{date}.md，通过飞书发送摘要。'
+
 _HB_MAIN="report all agents activity with session tool"
 _HB_ANALYST="检查 inbox/ 目录，有未处理文件则分析并写入 memory/analysis-{date}.md，通过飞书发送摘要；无则回复 HEARTBEAT_OK。"
+
 # ── 步骤 ──
+
 load_env() {
   if [ ! -f "$ENV_FILE" ]; then
     mkdir -p "$OPENCLAW_DIR"
@@ -120,7 +136,9 @@ install_openclaw() {
   else
     info "安装 OpenClaw..."
   fi
-  curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --no-prompt --no-onboard
+  curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh -o /tmp/_oc_install.sh
+  bash /tmp/_oc_install.sh --no-prompt --no-onboard < /dev/null
+  rm -f /tmp/_oc_install.sh
   ok "OpenClaw $(openclaw --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1) 安装完成"
 }
 
@@ -130,7 +148,8 @@ run_onboard() {
   openclaw onboard --non-interactive \
     --mode local --auth-choice skip \
     --gateway-port 18789 --gateway-bind loopback \
-    --install-daemon --daemon-runtime node --skip-skills --accept-risk || die "onboard 失败"
+    --install-daemon --daemon-runtime node --skip-skills --accept-risk \
+    < /dev/null || die "onboard 失败"
   info "覆写 main auth-profiles.json..."
   _write_auth "$OPENCLAW_DIR/agents/main/agent/auth-profiles.json"
   ok "onboard 完成"
@@ -159,15 +178,15 @@ setup_agents() {
     local ws="$OPENCLAW_DIR/agentTeam/workspace-$AGENT_ID"
     openclaw agents add "$AGENT_ID" \
       --workspace "$ws" --model "$LLM_PROVIDER_ID/$LLM_MODEL_ID" \
-      --agent-dir "$OPENCLAW_DIR/agents/$AGENT_ID" --non-interactive || { warn "agent $AGENT_ID 添加失败"; continue; }
-    local d="$ws"
-    _wff "$d/IDENTITY.md"  "a helpful assistant"
-    _wff "$d/USER.md"      "CEO"
-    _wff "$d/MEMORY.md"    ""
-    _wff "$d/TOOLS.md"     "$_TOOLS_MD"
-    _wff "$d/AGENTS.md"    ""
-    _wff "$d/SOUL.md"      "$_SOUL_ANALYST"
-    _wff "$d/HEARTBEAT.md" "$_HB_ANALYST"
+      --agent-dir "$OPENCLAW_DIR/agents/$AGENT_ID" --non-interactive \
+      < /dev/null || { warn "agent $AGENT_ID 添加失败"; continue; }
+    _wff "$ws/IDENTITY.md"  "a helpful assistant"
+    _wff "$ws/USER.md"      "CEO"
+    _wff "$ws/MEMORY.md"    ""
+    _wff "$ws/TOOLS.md"     "$_TOOLS_MD"
+    _wff "$ws/AGENTS.md"    ""
+    _wff "$ws/SOUL.md"      "$_SOUL_ANALYST"
+    _wff "$ws/HEARTBEAT.md" "$_HB_ANALYST"
     _write_auth "$OPENCLAW_DIR/agents/$AGENT_ID/agent/auth-profiles.json"
     ok "agent $AGENT_ID 配置完成"
   done
@@ -227,6 +246,16 @@ if defs.get('model', {}).get('primary') == '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}':
 am = defs.get('models', {})
 if '${LLM_PROVIDER_ID}/${LLM_MODEL_ID}' in am: am[full] = am.pop('${LLM_PROVIDER_ID}/${LLM_MODEL_ID}')
 
+# brave：先把明文 apiKey 换成 $BRAVE_SEARCH_API_KEY，没填则整个删掉
+try:
+    c['plugins']['entries']['brave']['config']['webSearch']['apiKey'] = '$BRAVE_SEARCH_API_KEY'
+except KeyError: pass
+if not e('BRAVE_SEARCH_API_KEY'):
+    try: c['plugins']['entries'].pop('brave', None)
+    except KeyError: pass
+    try: c['tools']['web']['search']['enabled'] = False
+    except KeyError: pass
+
 # channels / plugins（未填则移除）
 ch = c.get('channels', {})
 for key, val in [('feishu', e('FEISHU_APP_ID')), ('slack', e('SLACK_APP_TOKEN')),
@@ -235,11 +264,6 @@ for key, val in [('feishu', e('FEISHU_APP_ID')), ('slack', e('SLACK_APP_TOKEN'))
 if not ch: c.pop('channels', None)
 if not e('FEISHU_APP_ID'):
     try: c['plugins']['entries'].pop('feishu', None)
-    except KeyError: pass
-if not e('BRAVE_SEARCH_API_KEY'):
-    try: c['plugins']['entries'].pop('brave', None)
-    except KeyError: pass
-    try: c['tools']['web']['search']['enabled'] = False
     except KeyError: pass
 if not e('BROWSER_PATH'):
     try: c['browser'].pop('executablePath', None)
@@ -253,7 +277,7 @@ PY
 verify() {
   command -v openclaw &>/dev/null || { warn "openclaw 未找到，请重新加载 shell"; return; }
   info "运行 doctor --fix..."
-  openclaw doctor --fix || warn "doctor 报告了问题"
+  openclaw doctor --fix < /dev/null || warn "doctor 报告了问题"
   info "重启 gateway..."
   openclaw gateway stop 2>/dev/null || true; sleep 3
   openclaw gateway install --force 2>/dev/null || true; sleep 15
