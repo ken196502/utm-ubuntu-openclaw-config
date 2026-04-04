@@ -52,6 +52,14 @@
       "heartbeat": {
         "every": "30m",
         "target": "last"
+      },
+      "memorySearch": {
+        "provider": "openai",
+        "model": "nvidia/nv-embed-v1",
+        "remote": {
+          "baseUrl": "${LLM_BASE_URL}",
+          "apiKey": "${LLM_API_KEY}"
+        }
       }
     }
   },
@@ -124,25 +132,26 @@
     },
     "feishu": {
       "enabled": true,
-      "accounts": {
-        "main": {
-          "appId": "${FEISHU_APP_ID}",
-          "appSecret": "${FEISHU_APP_SECRET}"
-        },
-        "default": {
-          "dmPolicy": "pairing",
-          "groupPolicy": "open",
-          "webhookPath": "/feishu/events"
-        }
-      },
+      "appId": "${FEISHU_APP_ID}",
+      "appSecret": "${FEISHU_APP_SECRET}",
       "domain": "feishu",
       "connectionMode": "websocket",
-      "webhookPath": "/feishu/events",
-      "dmPolicy": "pairing",
-      "groupPolicy": "allowlist",
-      "reactionNotifications": "own",
-      "typingIndicator": true,
-      "resolveSenderNames": true
+      "requireMention": true,
+      "mediaMaxMb": 30,
+      "renderMode": "auto",
+      "tools": {
+        "perm": true
+      },
+      "accounts": {
+        "default": {
+          "appId": "${FEISHU_APP_ID}",
+          "appSecret": "${FEISHU_APP_SECRET}",
+          "botName": "FeishuAI",
+          "dmPolicy": "pairing",
+          "groupPolicy": "open"
+        }
+      },
+      "stream": false
     }
   },
   "browser": {
@@ -151,9 +160,49 @@
     "defaultProfile": "openclaw"
   },
   "gateway": {
-    "mode":"local",
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
     "auth": {
-       "mode": "none"
+      "mode": "token",
+      "token": "${OPENCLAW_GATEWAY_TOKEN}"
+    },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    },
+    "nodes": {
+      "denyCommands": [
+        "camera.snap",
+        "camera.clip",
+        "screen.record",
+        "calendar.add",
+        "contacts.add",
+        "reminders.add"
+      ]
+    }
+  },
+  "acp": {
+    "enabled": true,
+    "dispatch": {
+      "enabled": true
+    },
+    "backend": "acpx",
+    "defaultAgent": "claude",
+    "allowedAgents": [
+      "pi",
+      "claude",
+      "codex",
+      "opencode",
+      "gemini"
+    ],
+    "maxConcurrentSessions": 8,
+    "stream": {
+      "coalesceIdleMs": 300,
+      "maxChunkChars": 1200
+    },
+    "runtime": {
+      "ttlMinutes": 120
     }
   },
   "skills": {
@@ -167,8 +216,15 @@
         "enabled": true
       },
       "acpx": {
-        "enabled": false
+        "enabled": true
+      },
+      "browser": {
+        "enabled": true
       }
     }
+  },
+  "meta": {
+    "lastTouchedVersion": "2026.4.2",
+    "lastTouchedAt": "2026-04-04T13:09:21.714Z"
   }
 }
