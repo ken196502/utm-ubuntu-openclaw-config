@@ -64,7 +64,7 @@ _SOUL_MAIN='You are an Agent Manager. You MUST dispatch tasks by acp or executin
 
 _SOUL_ANALYST='你是资讯分析师，用 subagent 上网搜索调研，写入 memory/analysis-{date}.md，通过飞书发送摘要。'
 
-_HB_MAIN="report all agents activity with session tool"
+_HB_MAIN="report all agents activity, clean finished session"
 _HB_ANALYST="检查 inbox/ 目录，有未处理文件则分析并写入 memory/analysis-{date}.md，通过飞书发送摘要；无则回复 HEARTBEAT_OK。"
 
 # ── 步骤 ──
@@ -151,7 +151,7 @@ deploy_workspace() {
   _wf  "$ws/USER.md"      "CEO"
   _wf  "$ws/MEMORY.md"    ""
   _wf  "$ws/TOOLS.md"     "$_TOOLS_MD"
-  _wf  "$ws/AGENTS.md"    ""
+  _wf  "$ws/AGENTS.md"    "follow SOUL.MD"
   _wf  "$ws/HEARTBEAT.md" "$_HB_MAIN"
   ok "workspace 写入完成"
 }
@@ -279,12 +279,12 @@ echo -e "\n${B}╔════════════════════�
 ╚══════════════════════════════════════╝${N}\n"
 
 load_env
-deploy_config
 install_openclaw
 run_onboard
 deploy_workspace
 setup_agents
 verify
+deploy_config
 
 echo -e "\n${G}✓ 安装完成！${N}
   配置:  $OPENCLAW_DIR/openclaw.json
