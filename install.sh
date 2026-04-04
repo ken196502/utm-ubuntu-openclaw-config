@@ -1,9 +1,13 @@
 #!/bin/bash
 set -e
 exec < /dev/tty   # 防止 curl|bash 时子进程抢占 stdin
-
-trap 'echo -e "\n${R}[EXIT]${N} 第 $LINENO 行失败: $BASH_COMMAND" >&2' ERR
-
+if [ -t 0 ]; then
+  : # 本地执行，stdin 已经是终端，什么都不做
+elif [ -c /dev/tty ]; then
+  exec < /dev/tty
+else
+  exec < /dev/null  # CI / 无 tty 环境，防止子进程卡住等输入
+fi
 GITHUB_RAW="https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master"
 OPENCLAW_DIR="$HOME/.openclaw"
 [ -f "$OPENCLAW_DIR/.env" ] && { _ov=$(grep -v '^\s*#' "$OPENCLAW_DIR/.env" | grep '^OPENCLAW_DIR=' | cut -d= -f2- | tr -d '"'"'"); [ -n "$_ov" ] && OPENCLAW_DIR="$_ov"; }
