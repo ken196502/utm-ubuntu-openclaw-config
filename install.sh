@@ -1,13 +1,12 @@
 #!/bin/bash
-set -e
-exec < /dev/tty   # 防止 curl|bash 时子进程抢占 stdin
-if [ -t 0 ]; then
-  : # 本地执行，stdin 已经是终端，什么都不做
-elif [ -c /dev/tty ]; then
-  exec < /dev/tty
-else
-  exec < /dev/null  # CI / 无 tty 环境，防止子进程卡住等输入
+# ── curl|bash 保护：stdin 是管道时，下载自身并以文件方式重新执行 ──
+if [ ! -t 0 ]; then
+  _tmp=$(mktemp /tmp/openclaw_install_XXXXXX.sh)
+  trap "rm -f $_tmp" EXIT
+  curl -fsSL "${GITHUB_RAW}/install.sh" -o "$_tmp"
+  exec bash "$_tmp" "$@"
 fi
+set -e
 GITHUB_RAW="https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master"
 OPENCLAW_DIR="$HOME/.openclaw"
 [ -f "$OPENCLAW_DIR/.env" ] && { _ov=$(grep -v '^\s*#' "$OPENCLAW_DIR/.env" | grep '^OPENCLAW_DIR=' | cut -d= -f2- | tr -d '"'"'"); [ -n "$_ov" ] && OPENCLAW_DIR="$_ov"; }
