@@ -1,5 +1,7 @@
 #!/bin/bash
 set -e
+exec < /dev/tty   # 防止 curl|bash 时子进程抢占 stdin
+
 trap 'echo -e "\n${R}[EXIT]${N} 第 $LINENO 行失败: $BASH_COMMAND" >&2' ERR
 
 GITHUB_RAW="https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master"
