@@ -279,6 +279,7 @@ echo -e "\n${B}╔════════════════════�
 ╚══════════════════════════════════════╝${N}\n"
 
 load_env
+deploy_config
 install_openclaw
 run_onboard
 deploy_workspace
