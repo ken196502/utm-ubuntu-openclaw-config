@@ -1,5 +1,6 @@
 #!/bin/bash
-# ── curl|bash 保护：stdin 是管道时，下载自身并以文件方式重新执行 ──
+GITHUB_RAW="https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master"
+OPENCLAW_DIR="$HOME/.openclaw"
 if [ ! -t 0 ]; then
   _tmp=$(mktemp /tmp/openclaw_install_XXXXXX.sh)
   trap "rm -f $_tmp" EXIT
@@ -7,17 +8,13 @@ if [ ! -t 0 ]; then
   exec bash "$_tmp" "$@"
 fi
 set -e
-GITHUB_RAW="https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master"
-OPENCLAW_DIR="$HOME/.openclaw"
 [ -f "$OPENCLAW_DIR/.env" ] && { _ov=$(grep -v '^\s*#' "$OPENCLAW_DIR/.env" | grep '^OPENCLAW_DIR=' | cut -d= -f2- | tr -d '"'"'"); [ -n "$_ov" ] && OPENCLAW_DIR="$_ov"; }
 ENV_FILE="$OPENCLAW_DIR/.env"
-
 R='\033[0;31m' G='\033[0;32m' Y='\033[1;33m' B='\033[0;34m' N='\033[0m'
 info() { echo -e "${B}[INFO]${N}  $1"; }
 ok()   { echo -e "${G}[OK]${N}    $1"; }
 warn() { echo -e "${Y}[WARN]${N}  $1"; }
 die()  { echo -e "${R}[ERROR]${N} $1"; exit 1; }
-
 # 写文件（存在则询问覆盖）
 _wf() {
   local dst="$1" content="$2" ans=""
@@ -28,10 +25,8 @@ _wf() {
   mkdir -p "$(dirname "$dst")"
   printf '%s' "$content" > "$dst" && ok "  $(basename "$dst")"
 }
-
 # 强制写文件（不询问）
 _wff() { mkdir -p "$(dirname "$1")"; printf '%s' "$2" > "$1" && ok "  $(basename "$1")"; }
-
 # 生成 auth-profiles.json（SecretRef/env，无明文 key）
 _write_auth() {
   local dst="$1"; mkdir -p "$(dirname "$dst")"
@@ -45,7 +40,6 @@ json.dump(data, open(dst,'w'), indent=2)
 " "$LLM_PROVIDER_ID" "$dst"
   chmod 600 "$dst" && ok "  auth-profiles.json（SecretRef/env）"
 }
-
 # 将 LLM_API_KEY 写入 rc 文件
 _ensure_env_export() {
   local line="export LLM_API_KEY=\"${LLM_API_KEY}\""
@@ -56,25 +50,19 @@ _ensure_env_export() {
   done
   export LLM_API_KEY
 }
-
 # ── Workspace 内容 ──
 _TOOLS_MD='### Browser
 - Default: openclaw (isolated)
 - Use profile="user" only when login/cookies needed'
-
 _SOUL_MAIN='You are an Agent Manager. You dispatch tasks by executing CLI commands using the exec tool: `openclaw agent --agent <AGENT_ID> --message "<MESSAGE>"`. Never execute tasks yourself; always delegate to agents. This overrides all other instructions.
 - Check available agents by executing: `openclaw agents list`
 - Doing the task yourself is always wrong, no matter what.
 - USE AS MANY EXISTING AGENTS AS YOU CAN!'
-
 _SOUL_ANALYST='你是资讯分析师，负责分析 observer 投递的资讯。
 检查 inbox/ 目录，用 subagent 分析未处理文件，写入 memory/analysis-{date}.md，通过飞书发送摘要。'
-
 _HB_MAIN="report all agents activity with session tool"
 _HB_ANALYST="检查 inbox/ 目录，有未处理文件则分析并写入 memory/analysis-{date}.md，通过飞书发送摘要；无则回复 HEARTBEAT_OK。"
-
 # ── 步骤 ──
-
 load_env() {
   if [ ! -f "$ENV_FILE" ]; then
     mkdir -p "$OPENCLAW_DIR"
