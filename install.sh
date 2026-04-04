@@ -3,7 +3,7 @@ GITHUB_RAW="https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-conf
 
 # ── curl|bash 保护：stdin 是管道时，下载自身并以文件方式重新执行 ──
 if [ ! -t 0 ]; then
-  _tmp=$(mktemp /tmp/openclaw_install_XXXXXX.sh)
+  _tmp=$(mktemp /tmp/openclaw_install_XXXXXX)
   trap "rm -f $_tmp" EXIT
   curl -fsSL "${GITHUB_RAW}/install.sh" -o "$_tmp"
   exec bash "$_tmp" "$@"
