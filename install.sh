@@ -1,18 +1,8 @@
 #!/bin/bash
-GITHUB_RAW="https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master"
-
-# ── curl|bash 保护：stdin 是管道时，下载自身并以文件方式重新执行 ──
-if [ ! -t 0 ]; then
-  _tmp=$(mktemp /tmp/openclaw_install_XXXXXX)
-  rm -f "$_tmp"
-  trap "rm -f '$_tmp'" EXIT
-  curl -fsSL "${GITHUB_RAW}/install.sh" -o "$_tmp"
-  exec bash "$_tmp" "$@"
-fi
-
 set -e
 trap 'echo -e "\n${R}[EXIT]${N} 第 $LINENO 行失败: $BASH_COMMAND" >&2' ERR
 
+GITHUB_RAW="https://raw.githubusercontent.com/ken196502/utm-ubuntu-openclaw-config/refs/heads/master"
 OPENCLAW_DIR="$HOME/.openclaw"
 [ -f "$OPENCLAW_DIR/.env" ] && { _ov=$(grep -v '^\s*#' "$OPENCLAW_DIR/.env" | grep '^OPENCLAW_DIR=' | cut -d= -f2- | tr -d '"'"'"); [ -n "$_ov" ] && OPENCLAW_DIR="$_ov"; }
 ENV_FILE="$OPENCLAW_DIR/.env"
@@ -72,8 +62,7 @@ _SOUL_MAIN='You are an Agent Manager. You dispatch tasks by executing CLI comman
 - Doing the task yourself is always wrong, no matter what.
 - USE AS MANY EXISTING AGENTS AS YOU CAN!'
 
-_SOUL_ANALYST='你是资讯分析师，负责分析 observer 投递的资讯。
-检查 inbox/ 目录，用 subagent 分析未处理文件，写入 memory/analysis-{date}.md，通过飞书发送摘要。'
+_SOUL_ANALYST='你是资讯分析师，用 subagent 上网搜索调研，写入 memory/analysis-{date}.md，通过飞书发送摘要。'
 
 _HB_MAIN="report all agents activity with session tool"
 _HB_ANALYST="检查 inbox/ 目录，有未处理文件则分析并写入 memory/analysis-{date}.md，通过飞书发送摘要；无则回复 HEARTBEAT_OK。"
@@ -137,9 +126,7 @@ install_openclaw() {
   else
     info "安装 OpenClaw..."
   fi
-  curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh -o /tmp/_oc_install.sh
-  bash /tmp/_oc_install.sh --no-prompt --no-onboard < /dev/null
-  rm -f /tmp/_oc_install.sh
+  curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --no-prompt --no-onboard
   ok "OpenClaw $(openclaw --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1) 安装完成"
 }
 
@@ -278,7 +265,7 @@ PY
 verify() {
   command -v openclaw &>/dev/null || { warn "openclaw 未找到，请重新加载 shell"; return; }
   info "运行 doctor --fix..."
-  openclaw doctor --fix < /dev/null || warn "doctor 报告了问题"
+  openclaw doctor --fix || warn "doctor 报告了问题"
   info "重启 gateway..."
   openclaw gateway stop 2>/dev/null || true; sleep 3
   openclaw gateway install --force 2>/dev/null || true; sleep 15
