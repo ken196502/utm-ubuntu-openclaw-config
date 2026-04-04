@@ -146,7 +146,7 @@ run_onboard() {
 deploy_workspace() {
   info "写入 workspace 文件..."
   local ws="$OPENCLAW_DIR/workspace"; mkdir -p "$ws"
-  _wf  "$ws/IDENTITY.md"  "a helpful assistant"
+  _wf  "$ws/IDENTITY.md"  "Agent Manager"
   _wf  "$ws/SOUL.md"      "$_SOUL_MAIN"
   _wf  "$ws/USER.md"      "CEO"
   _wf  "$ws/MEMORY.md"    ""
