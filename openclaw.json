@@ -61,7 +61,6 @@
       "search": {
         "enabled": true,
         "provider": "brave",
-        "apiKey": "${BRAVE_SEARCH_API_KEY}",
         "maxResults": 5,
         "timeoutSeconds": 30
       }
