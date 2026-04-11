@@ -136,10 +136,7 @@
       "accounts": {
         "default": {
           "appId": "${FEISHU_APP_ID}",
-          "appSecret": "${FEISHU_APP_SECRET}",
-          "botName": "FeishuAI",
-          "dmPolicy": "pairing",
-          "groupPolicy": "open"
+          "appSecret": "${FEISHU_APP_SECRET}"
         }
       },
       "stream": false
